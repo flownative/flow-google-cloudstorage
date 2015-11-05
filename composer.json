@@ -1,0 +1,25 @@
+{
+  "name": "flownative/google-cloudstorage",
+  "type": "typo3-flow-package",
+  "description": "",
+  "authors": [
+    {
+      "name": "Robert Lemke",
+      "email": "robert@flownative.com",
+      "homepage": "https://www.flownative.com",
+      "role": "Developer"
+    }
+  ],
+  "license": [
+    "MIT"
+  ],
+  "require": {
+    "typo3/flow": "3.*",
+    "google/apiclient": "1.1.*"
+  },
+  "autoload": {
+    "psr-4": {
+      "Flownative\\Google\\CloudStorage": "Classes"
+    }
+  }
+}
