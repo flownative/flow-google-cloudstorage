@@ -180,7 +180,9 @@ class GcsStorage implements WritableStorageInterface
             }
         }
 
-        return $this->importTemporaryFile($temporaryTargetPathAndFilename, $collectionName);
+        $resource= $this->importTemporaryFile($temporaryTargetPathAndFilename, $collectionName);
+        unlink($temporaryTargetPathAndFilename);
+        return $resource;
     }
 
     /**
@@ -310,6 +312,7 @@ class GcsStorage implements WritableStorageInterface
     {
         try {
             $storageObject = $this->storageService->objects->get($this->bucketName, $this->keyPrefix . $resource->getSha1(), ['alt' => 'media']);
+            $this->systemLogger->log('Create tmpfile for ' . $resource->getSha1());
             $fh = tmpfile();
             fwrite($fh, $storageObject);
             rewind($fh);
@@ -337,6 +340,7 @@ class GcsStorage implements WritableStorageInterface
     {
         try {
             $storageObject = $this->storageService->objects->get($this->bucketName, $this->keyPrefix . ltrim($relativePath, '/'), ['alt' => 'media']);
+            $this->systemLogger->log('Create tmpfile for ' .$relativePath);
             $fh = tmpfile();
             fwrite($fh, $storageObject);
             rewind($fh);
