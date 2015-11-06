@@ -310,7 +310,7 @@ class GcsStorage implements WritableStorageInterface
     {
         try {
             $storageObject = $this->storageService->objects->get($this->bucketName, $this->keyPrefix . $resource->getSha1(), ['alt' => 'media']);
-            $fh = fopen('php://memory', 'w+');
+            $fh = fopen('php://temp', 'w+');
             fwrite($fh, $storageObject);
             rewind($fh);
             return $fh;
@@ -337,7 +337,7 @@ class GcsStorage implements WritableStorageInterface
     {
         try {
             $storageObject = $this->storageService->objects->get($this->bucketName, $this->keyPrefix . ltrim($relativePath, '/'), ['alt' => 'media']);
-            $fh = fopen('php://memory', 'w+');
+            $fh = fopen('php://temp', 'w+');
             fwrite($fh, $storageObject);
             rewind($fh);
             return $fh;
@@ -389,7 +389,7 @@ class GcsStorage implements WritableStorageInterface
             $object->setSha1($resource->getSha1());
             $object->setStream(function () use ($that, $bucketName, $keyPrefix, $storageService, $resource) {
                 $storageObject = $storageService->objects->get($bucketName, $keyPrefix . $resource->getSha1(), ['alt' => 'media']);
-                $fh = fopen('php://memory', 'w+');
+                $fh = fopen('php://temp', 'w+');
                 fwrite($fh, $storageObject);
                 rewind($fh);
                 return $fh;
