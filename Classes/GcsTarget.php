@@ -159,12 +159,12 @@ class GcsTarget implements TargetInterface
     /**
      * Publishes the whole collection to this target
      *
-     * @param \TYPO3\Flow\Resource\Collection $collection The collection to publish
+     * @param Collection|CollectionInterface $collection The collection to publish
      * @throws Exception
      * @throws \Exception
      * @throws \Google_Service_Exception
      */
-    public function publishCollection(Collection $collection)
+    public function publishCollection(CollectionInterface $collection)
     {
         if (!isset($this->existingObjectsInfo)) {
             $this->existingObjectsInfo = [];
