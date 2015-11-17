@@ -37,7 +37,7 @@ class StorageFactory
     public function create($credentialsProfileName = 'default')
     {
         if (!isset($this->credentialProfiles[$credentialsProfileName])) {
-            throw new Exception('The specified Google Cloud Storage credentials profile "%s" does not exist, please check your settings.', [$credentialsProfileName], 1446553024);
+            throw new Exception(sprintf('The specified Google Cloud Storage credentials profile "%s" does not exist, please check your settings.', $credentialsProfileName), 1446553024);
         }
 
         if (substr($this->credentialProfiles[$credentialsProfileName]['credentials']['privateKeyP12PathAndFilename'], 0, 1) !== '/') {
@@ -47,7 +47,7 @@ class StorageFactory
         }
 
         if (!file_exists($privateKeyPathAndFilename)) {
-            throw new Exception('The Google Cloud Storage private key file "%s" does not exist. Either the file is missing or you need to adjust your settings.', [$privateKeyPathAndFilename], 1446553054);
+            throw new Exception(sprintf('The Google Cloud Storage private key file "%s" does not exist. Either the file is missing or you need to adjust your settings.', $privateKeyPathAndFilename), 1446553054);
         }
 
         $privateKey = file_get_contents($privateKeyPathAndFilename);
