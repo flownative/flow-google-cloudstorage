@@ -26,6 +26,7 @@ use TYPO3\Flow\Utility\Environment;
  */
 class GcsStorage implements WritableStorageInterface
 {
+
     /**
      * Name which identifies this resource storage
      *
@@ -97,10 +98,10 @@ class GcsStorage implements WritableStorageInterface
             switch ($key) {
                 case 'bucket':
                     $this->bucketName = $value;
-                    break;
+                break;
                 case 'keyPrefix':
                     $this->keyPrefix = ltrim($value, '/');
-                    break;
+                break;
                 default:
                     if ($value !== null) {
                         throw new Exception(sprintf('An unknown option "%s" was specified in the configuration of the "%s" resource GcsStorage. Please check your settings.', $key, $name), 1446667391);
@@ -180,8 +181,9 @@ class GcsStorage implements WritableStorageInterface
             }
         }
 
-        $resource= $this->importTemporaryFile($temporaryTargetPathAndFilename, $collectionName);
+        $resource = $this->importTemporaryFile($temporaryTargetPathAndFilename, $collectionName);
         unlink($temporaryTargetPathAndFilename);
+
         return $resource;
     }
 
@@ -195,7 +197,6 @@ class GcsStorage implements WritableStorageInterface
      * important because the resource management will derive the IANA Media Type from it.
      *
      * @param string $content The actual content to import
-     * @return Resource A resource object representing the imported resource
      * @param string $collectionName Name of the collection the new Resource belongs to
      * @return Resource A resource object representing the imported resource
      * @throws Exception
@@ -219,7 +220,7 @@ class GcsStorage implements WritableStorageInterface
         $storageObject->setName($this->keyPrefix . $sha1Hash);
         $storageObject->setSize($resource->getFileSize());
 
-        $this->storageService->objects->insert($this->bucketName, $storageObject, [ 'data' => $content, 'uploadType' => 'media' ]);
+        $this->storageService->objects->insert($this->bucketName, $storageObject, ['data' => $content, 'uploadType' => 'media']);
 
         return $resource;
     }
@@ -280,7 +281,7 @@ class GcsStorage implements WritableStorageInterface
     /**
      * Deletes the storage data related to the given Resource object
      *
-     * @param \TYPO3\Flow\Resource\Resource $resource The Resource to delete the storage data of
+     * @param Resource $resource The Resource to delete the storage data of
      * @return bool TRUE if removal was successful
      * @throws \Exception
      * @throws \Google_Service_Exception
@@ -296,6 +297,7 @@ class GcsStorage implements WritableStorageInterface
             }
             throw $e;
         }
+
         return true;
     }
 
@@ -303,7 +305,7 @@ class GcsStorage implements WritableStorageInterface
      * Returns a stream handle which can be used internally to open / copy the given resource
      * stored in this storage.
      *
-     * @param \TYPO3\Flow\Resource\Resource $resource The resource stored in this storage
+     * @param Resource $resource The resource stored in this storage
      * @return bool|resource A URI (for example the full path and filename) leading to the resource file or FALSE if it does not exist
      * @throws Exception
      * @api
@@ -316,6 +318,7 @@ class GcsStorage implements WritableStorageInterface
             $fh = tmpfile();
             fwrite($fh, $storageObject);
             rewind($fh);
+
             return $fh;
         } catch (\Exception $e) {
             if ($e instanceof \Google_Service_Exception && $e->getCode() === 404) {
@@ -340,10 +343,11 @@ class GcsStorage implements WritableStorageInterface
     {
         try {
             $storageObject = $this->storageService->objects->get($this->bucketName, $this->keyPrefix . ltrim($relativePath, '/'), ['alt' => 'media']);
-            $this->systemLogger->log('Create tmpfile for ' .$relativePath);
+            $this->systemLogger->log('Create tmpfile for ' . $relativePath);
             $fh = tmpfile();
             fwrite($fh, $storageObject);
             rewind($fh);
+
             return $fh;
         } catch (\Exception $e) {
             if ($e instanceof \Google_Service_Exception && $e->getCode() === 404) {
@@ -367,6 +371,7 @@ class GcsStorage implements WritableStorageInterface
         foreach ($this->resourceManager->getCollectionsByStorage($this) as $collection) {
             $objects = array_merge($objects, $this->getObjectsByCollection($collection));
         }
+
         return $objects;
     }
 
@@ -384,7 +389,7 @@ class GcsStorage implements WritableStorageInterface
         $that = $this;
         $bucketName = $this->bucketName;
         $keyPrefix = $this->keyPrefix;
-        $storageService= $this->storageService;
+        $storageService = $this->storageService;
 
         foreach ($this->resourceRepository->findByCollectionName($collection->getName()) as $resource) {
             /** @var \TYPO3\Flow\Resource\Resource $resource */
@@ -396,6 +401,7 @@ class GcsStorage implements WritableStorageInterface
                 $fh = fopen('php://temp', 'w+');
                 fwrite($fh, $storageObject);
                 rewind($fh);
+
                 return $fh;
             });
             $objects[] = $object;
@@ -441,7 +447,7 @@ class GcsStorage implements WritableStorageInterface
             $storageObject->setName($this->keyPrefix . $sha1Hash);
             $storageObject->setSize($resource->getFileSize());
 
-            $this->storageService->objects->insert($this->bucketName, $storageObject, [ 'data' => file_get_contents($temporaryPathAndFilename), 'uploadType' => 'media' ]);
+            $this->storageService->objects->insert($this->bucketName, $storageObject, ['data' => file_get_contents($temporaryPathAndFilename), 'uploadType' => 'media']);
             $this->systemLogger->log(sprintf('Successfully imported resource as object "%s" into bucket "%s" with MD5 hash "%s"', $sha1Hash, $this->bucketName, $resource->getMd5() ?: 'unknown'), LOG_INFO);
         } else {
             $this->systemLogger->log(sprintf('Did not import resource as object "%s" into bucket "%s" because that object already existed.', $sha1Hash, $this->bucketName), LOG_INFO);

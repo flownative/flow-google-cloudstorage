@@ -13,7 +13,6 @@ namespace Flownative\Google\CloudStorage;
 
 use TYPO3\Flow\Annotations as Flow;
 use TYPO3\Flow\Log\SystemLoggerInterface;
-use TYPO3\Flow\Resource\Collection;
 use TYPO3\Flow\Resource\CollectionInterface;
 use TYPO3\Flow\Resource\Exception;
 use TYPO3\Flow\Resource\Resource;
@@ -26,6 +25,7 @@ use TYPO3\Flow\Resource\Target\TargetInterface;
  */
 class GcsTarget implements TargetInterface
 {
+
     /**
      * Name which identifies this resource target
      *
@@ -108,16 +108,16 @@ class GcsTarget implements TargetInterface
             switch ($key) {
                 case 'bucket':
                     $this->bucketName = $value;
-                    break;
+                break;
                 case 'keyPrefix':
                     $this->keyPrefix = ltrim($value, '/');
-                    break;
+                break;
                 case 'corsAllowOrigin':
                     $this->corsAllowOrigin = $value;
-                    break;
+                break;
                 case 'baseUri':
                     $this->baseUri = $value;
-                    break;
+                break;
                 default:
                     if ($value !== null) {
                         throw new Exception(sprintf('An unknown option "%s" was specified in the configuration of the "%s" resource GcsTarget. Please check your settings.', $key, $name), 1446719852);
@@ -159,7 +159,7 @@ class GcsTarget implements TargetInterface
     /**
      * Publishes the whole collection to this target
      *
-     * @param Collection|CollectionInterface $collection The collection to publish
+     * @param CollectionInterface $collection The collection to publish
      * @throws Exception
      * @throws \Exception
      * @throws \Google_Service_Exception
@@ -371,6 +371,7 @@ class GcsTarget implements TargetInterface
         } else {
             $pathAndFilename = $object->getSha1() . '/' . $object->getFilename();
         }
+
         return $pathAndFilename;
     }
 }
