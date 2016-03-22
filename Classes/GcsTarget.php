@@ -200,6 +200,7 @@ class GcsTarget implements TargetInterface
                 $storageObject->setName($objectName);
                 $storageObject->setContentType($object->getMediaType());
                 $storageObject->setSize($object->getFileSize());
+                $storageObject->setCacheControl('public, max-age=1209600');
 
                 $parameters = [
                     'destinationPredefinedAcl' => 'publicRead'
@@ -264,6 +265,7 @@ class GcsTarget implements TargetInterface
             $storageObject->setName($objectName);
             $storageObject->setContentType($resource->getMediaType());
             $storageObject->setSize($resource->getFileSize());
+            $storageObject->setCacheControl('public, max-age=1209600');
 
             $parameters = [
                 'destinationPredefinedAcl' => 'publicRead'
@@ -337,14 +339,15 @@ class GcsTarget implements TargetInterface
         $storageObject->setName($objectName);
         $storageObject->setContentType($metaData->getMediaType());
         $storageObject->setSize($metaData->getFileSize());
-
-        $parameters = [
-            'data' => stream_get_contents($sourceStream),
-            'uploadType' => 'media',
-            'destinationPredefinedAcl' => 'publicRead'
-        ];
+        $storageObject->setCacheControl('public, max-age=1209600');
 
         try {
+            $parameters = [
+                'data' => stream_get_contents($sourceStream),
+                'uploadType' => 'media',
+                'predefinedAcl' => 'publicRead'
+            ];
+
             $this->storageService->objects->insert($this->bucketName, $storageObject, $parameters);
             $this->systemLogger->log(sprintf('Successfully published resource as object "%s" in bucket "%s" with MD5 hash "%s"', $objectName, $this->bucketName, $metaData->getMd5() ?: 'unknown'), LOG_DEBUG);
         } catch (\Exception $e) {
