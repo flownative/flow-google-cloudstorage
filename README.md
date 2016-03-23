@@ -9,7 +9,7 @@ This [Flow](https://flow.typo3.org) package allows you to store assets (resource
 and publish resources to GCS. Because [Neos CMS](https://www.neos.io) is using Flow's resource management under the hood,
 this adaptor also works nicely for all kinds of assets in Neos.
 
-NOTE: This package is in an early alpha stage. It may work fine, but there is not enough real-world experience with it yet.
+NOTE: This package is in beta stage. It works fine for some, but there is little real-world experience with it yet.
 
 ## Key Features
 
@@ -25,7 +25,7 @@ The Flownative Google Cloud Storage connector is installed as a regular Flow pac
 project, simply include `flownative/google-cloudstorage` into the dependencies of your Flow or Neos distribution:
 
 ```bash
-    $ composer require flownative/google-cloudstorage:~1.0@alpha
+$ composer require flownative/google-cloudstorage:~1.0@beta
 ```
 
 ## Configuration
@@ -46,10 +46,10 @@ Flownative:
             privateKeyP12PathAndFilename: 'Data/Secrets/MyGoogleProject-abc123457def.p12'
 ```
 
-You can test your settings by executing the `connect` command.
+You can test your settings by executing the `connect` command with a bucket of your choice.
 
 ```bash
-    $ ./flow gcs:connect storage.example.net
+$ ./flow gcs:connect storage.example.net
 ```
 
 Right now, you can only define one connection profile, namely the "default" profile. Additional profiles may be supported
@@ -65,27 +65,26 @@ Once the connector package is in place, you add a new publishing target which us
 to your collection.
 
 ```yaml
-
-  TYPO3:
-    Flow:
-      resource:
-        collections:
-          persistent:
-            target: 'cloudFrontPersistentResourcesTarget'
-        targets:
-          googlePersistentResourcesTarget:
-            target: 'Flownative\Google\CloudStorage\GcsTarget'
-            targetOptions:
-              bucket: 'target.example.net'
-              keyPrefix: '/'
-              baseUri: 'http://storage.googleapis.com/target.example.net/'
+TYPO3:
+  Flow:
+    resource:
+      collections:
+        persistent:
+          target: 'googlePersistentResourcesTarget'
+      targets:
+        googlePersistentResourcesTarget:
+          target: 'Flownative\Google\CloudStorage\GcsTarget'
+          targetOptions:
+            bucket: 'target.example.net'
+            keyPrefix: '/'
+            baseUri: 'http://storage.googleapis.com/target.example.net/'
 ```
 
 Since the new publishing target will be empty initially, you need to publish your assets to the new target by using the
 ``resource:publish`` command:
 
 ```bash
-    path$ ./flow resource:publish
+$ ./flow resource:publish
 ```
 
 This command will upload your files to the target and use the calculated remote URL for all your assets from now on.
@@ -99,23 +98,22 @@ You start by adding a new storage with the GCS connector to your configuration. 
 assets by the remote storage system, you also add a target that contains your published resources.
 
 ```yaml
-
-  TYPO3:
-    Flow:
-      resource:
-        storages:
-          googlePersistentResourcesStorage:
-            storage: 'Flownative\Google\CloudStorage\GcsStorage'
-            storageOptions:
-              bucket: 'storage.example.net'
-              keyPrefix: '/'
-        targets:
-          googlePersistentResourcesTarget:
-            target: 'Flownative\Google\CloudStorage\GcsTarget'
-            targetOptions:
-              bucket: 'target.example.net'
-              keyPrefix: '/'
-              baseUri: 'http://storage.googleapis.com/target.example.net/'
+TYPO3:
+  Flow:
+    resource:
+      storages:
+        googlePersistentResourcesStorage:
+          storage: 'Flownative\Google\CloudStorage\GcsStorage'
+          storageOptions:
+            bucket: 'storage.example.net'
+            keyPrefix: '/'
+      targets:
+        googlePersistentResourcesTarget:
+          target: 'Flownative\Google\CloudStorage\GcsTarget'
+          targetOptions:
+            bucket: 'target.example.net'
+            keyPrefix: '/'
+            baseUri: 'http://storage.googleapis.com/target.example.net/'
 ```
 
 Some notes regarding the configuration:
@@ -134,22 +132,19 @@ In order to copy the resources to the new storage we need a temporary collection
 publication target.
 
 ```yaml
-
-  TYPO3:
-    Flow:
-      resource:
-        collections:
-          tmpNewCollection:
-            storage: 'googlePersistentResourcesStorage'
-            target: 'googlePersistentResourcesTarget'
+TYPO3:
+  Flow:
+    resource:
+      collections:
+        tmpNewCollection:
+          storage: 'googlePersistentResourcesStorage'
+          target: 'googlePersistentResourcesTarget'
 ```
 
 Now you can use the ``resource:copy`` command (available in Flow 3.1 or Neos 2.1 and higher):
 
 ```bash
-
-    $ ./flow resource:copy --publish persistent tmpNewCollection
-
+$ ./flow resource:copy --publish persistent tmpNewCollection
 ```
 
 This will copy all your files from your current storage (local filesystem) to the new remote storage. The ``--publish``
@@ -159,22 +154,19 @@ current storage and publication target as on the new one.
 Now you can overwrite your old collection configuration and remove the temporary one:
 
 ```yaml
-
-  TYPO3:
-    Flow:
-      resource:
-        collections:
-          persistent:
-            storage: 'googlePersistentResourcesStorage'
-            target: 'googlePersistentResourcesTarget'
+TYPO3:
+  Flow:
+    resource:
+      collections:
+        persistent:
+          storage: 'googlePersistentResourcesStorage'
+          target: 'googlePersistentResourcesTarget'
 ```
 
 Clear caches and you're done.
 
 ```bash
-
-    $ ./flow flow:cache:flush
-
+$ ./flow flow:cache:flush
 ```
 
 ## Full Example Configuration for GCS
@@ -190,7 +182,7 @@ TYPO3:
             bucket: 'storage.example.net'
             keyPrefix: '/'
       collections:
-      # Collection which contains all persistent resources
+        # Collection which contains all persistent resources
         persistent:
           storage: 'googlePersistentResourcesStorage'
           target: 'googlePersistentResourcesTarget'
