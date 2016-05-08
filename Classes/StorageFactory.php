@@ -63,7 +63,7 @@ class StorageFactory
             $privateKey
         );
 
-        $temporaryTargetPathAndFilename = $this->environment->getPathToTemporaryDirectory() . uniqid('Flownative_Google_CloudStorage_Temp_');
+        $temporaryTargetPathAndFilename = $this->environment->getPathToTemporaryDirectory() . 'Flownative_Google_CloudStorage_Temp';
        
         $googleClient = new \Google_Client();
         $googleClient->setClassConfig('Google_Cache_File', 'directory',  $temporaryTargetPathAndFilename);
