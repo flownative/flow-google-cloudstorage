@@ -28,6 +28,12 @@ class StorageFactory
     protected $credentialProfiles;
 
     /**
+     * @Flow\Inject
+     * @var \TYPO3\Flow\Utility\Environment
+     */
+    protected $environment;
+
+    /**
      * Creates a new Storage instance and authenticates agains the Google API
      *
      * @param string $credentialsProfileName
@@ -57,7 +63,10 @@ class StorageFactory
             $privateKey
         );
 
+        $temporaryTargetPathAndFilename = $this->environment->getPathToTemporaryDirectory() . 'Flownative_Google_CloudStorage_Temp';
+       
         $googleClient = new \Google_Client();
+        $googleClient->setClassConfig('Google_Cache_File', 'directory',$temporaryTargetPathAndFilename);
         $googleClient->setAssertionCredentials($credentials);
         if ($googleClient->isAccessTokenExpired()) {
             $googleClient->getRefreshToken();
