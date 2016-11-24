@@ -14,7 +14,7 @@
         "MIT"
     ],
     "require": {
-        "typo3/flow": "3.*",
+        "neos/flow": "4.*",
         "google/apiclient": "1.1.*"
     },
     "autoload": {
