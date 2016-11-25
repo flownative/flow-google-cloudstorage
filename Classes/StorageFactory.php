@@ -12,7 +12,7 @@ namespace Flownative\Google\CloudStorage;
  */
 
 use Google_Client;
-use TYPO3\Flow\Annotations as Flow;
+use Neos\Flow\Annotations as Flow;
 
 /**
  * Factory for the Google Cloud Storage service class
@@ -29,7 +29,7 @@ class StorageFactory
 
     /**
      * @Flow\Inject
-     * @var \TYPO3\Flow\Utility\Environment
+     * @var \Neos\Flow\Utility\Environment
      */
     protected $environment;
 

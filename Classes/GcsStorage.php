@@ -11,15 +11,15 @@ namespace Flownative\Google\CloudStorage;
  * source code.
  */
 
-use TYPO3\Flow\Annotations as Flow;
-use TYPO3\Flow\ResourceManagement\CollectionInterface;
-use TYPO3\Flow\ResourceManagement\PersistentResource;
-use TYPO3\Flow\ResourceManagement\ResourceManager;
-use TYPO3\Flow\ResourceManagement\ResourceRepository;
-use TYPO3\Flow\ResourceManagement\Storage\Exception;
-use TYPO3\Flow\ResourceManagement\Storage\StorageObject;
-use TYPO3\Flow\ResourceManagement\Storage\WritableStorageInterface;
-use TYPO3\Flow\Utility\Environment;
+use Neos\Flow\Annotations as Flow;
+use Neos\Flow\ResourceManagement\CollectionInterface;
+use Neos\Flow\ResourceManagement\PersistentResource;
+use Neos\Flow\ResourceManagement\ResourceManager;
+use Neos\Flow\ResourceManagement\ResourceRepository;
+use Neos\Flow\ResourceManagement\Storage\Exception;
+use Neos\Flow\ResourceManagement\Storage\StorageObject;
+use Neos\Flow\ResourceManagement\Storage\WritableStorageInterface;
+use Neos\Flow\Utility\Environment;
 
 /**
  * A resource storage based on Google Cloud Storage
@@ -79,7 +79,7 @@ class GcsStorage implements WritableStorageInterface
 
     /**
      * @Flow\Inject
-     * @var \TYPO3\Flow\Log\SystemLoggerInterface
+     * @var \Neos\Flow\Log\SystemLoggerInterface
      */
     protected $systemLogger;
 
@@ -159,7 +159,7 @@ class GcsStorage implements WritableStorageInterface
      * @param string | resource $source The URI (or local path and filename) or the PHP resource stream to import the resource from
      * @param string $collectionName Name of the collection the new Resource belongs to
      * @return Resource A resource object representing the imported resource
-     * @throws \TYPO3\Flow\ResourceManagement\Storage\Exception
+     * @throws \Neos\Flow\ResourceManagement\Storage\Exception
      */
     public function importResource($source, $collectionName)
     {
@@ -362,7 +362,7 @@ class GcsStorage implements WritableStorageInterface
     /**
      * Retrieve all Objects stored in this storage.
      *
-     * @return array<\TYPO3\Flow\ResourceManagement\Storage\StorageObject>
+     * @return array<\Neos\Flow\ResourceManagement\Storage\StorageObject>
      * @api
      */
     public function getObjects()
@@ -380,7 +380,7 @@ class GcsStorage implements WritableStorageInterface
      *
      * @param CollectionInterface $collection
      * @internal param string $collectionName
-     * @return array<\TYPO3\Flow\ResourceManagement\Storage\StorageObject>
+     * @return array<\Neos\Flow\ResourceManagement\Storage\StorageObject>
      * @api
      */
     public function getObjectsByCollection(CollectionInterface $collection)
@@ -392,7 +392,7 @@ class GcsStorage implements WritableStorageInterface
         $storageService = $this->storageService;
 
         foreach ($this->resourceRepository->findByCollectionName($collection->getName()) as $resource) {
-            /** @var \TYPO3\Flow\ResourceManagement\PersistentResource $resource */
+            /** @var \Neos\Flow\ResourceManagement\PersistentResource $resource */
             $object = new Object();
             $object->setFilename($resource->getFilename());
             $object->setSha1($resource->getSha1());

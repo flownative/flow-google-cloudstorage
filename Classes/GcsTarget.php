@@ -11,14 +11,14 @@ namespace Flownative\Google\CloudStorage;
  * source code.
  */
 
-use TYPO3\Flow\Annotations as Flow;
-use TYPO3\Flow\Log\SystemLoggerInterface;
-use TYPO3\Flow\ResourceManagement\CollectionInterface;
-use TYPO3\Flow\ResourceManagement\Exception;
-use TYPO3\Flow\ResourceManagement\PersistentResource;
-use TYPO3\Flow\ResourceManagement\ResourceManager;
-use TYPO3\Flow\ResourceManagement\ResourceMetaDataInterface;
-use TYPO3\Flow\ResourceManagement\Target\TargetInterface;
+use Neos\Flow\Annotations as Flow;
+use Neos\Flow\Log\SystemLoggerInterface;
+use Neos\Flow\ResourceManagement\CollectionInterface;
+use Neos\Flow\ResourceManagement\Exception;
+use Neos\Flow\ResourceManagement\PersistentResource;
+use Neos\Flow\ResourceManagement\ResourceManager;
+use Neos\Flow\ResourceManagement\ResourceMetaDataInterface;
+use Neos\Flow\ResourceManagement\Target\TargetInterface;
 
 /**
  * A resource publishing target based on Amazon S3
@@ -62,7 +62,7 @@ class GcsTarget implements TargetInterface
     /**
      * Internal cache for known storages, indexed by storage name
      *
-     * @var array<\TYPO3\Flow\ResourceManagement\Storage\StorageInterface>
+     * @var array<\Neos\Flow\ResourceManagement\Storage\StorageInterface>
      */
     protected $storages = array();
 
@@ -192,7 +192,7 @@ class GcsTarget implements TargetInterface
                 throw new Exception(sprintf('Could not publish collection %s because the source and target bucket is the same, with identical key prefixes. Either choose a different bucket or at least key prefix for the target.', $collection->getName()), 1446721125);
             }
             foreach ($collection->getObjects() as $object) {
-                /** @var \TYPO3\Flow\ResourceManagement\Storage\StorageObject $object */
+                /** @var \Neos\Flow\ResourceManagement\Storage\StorageObject $object */
                 $objectName = $this->keyPrefix . $this->getRelativePublicationPathAndFilename($object);
 
                 $storageObject = new \Google_Service_Storage_StorageObject();
@@ -215,7 +215,7 @@ class GcsTarget implements TargetInterface
             }
         } else {
             foreach ($collection->getObjects() as $object) {
-                /** @var \TYPO3\Flow\ResourceManagement\Storage\StorageObject $object */
+                /** @var \Neos\Flow\ResourceManagement\Storage\StorageObject $object */
                 $this->publishFile($object->getStream(), $this->getRelativePublicationPathAndFilename($object), $object);
                 unset($obsoleteObjects[$this->getRelativePublicationPathAndFilename($object)]);
             }
@@ -246,7 +246,7 @@ class GcsTarget implements TargetInterface
     /**
      * Publishes the given persistent resource from the given storage
      *
-     * @param \TYPO3\Flow\ResourceManagement\PersistentResource $resource The resource to publish
+     * @param \Neos\Flow\ResourceManagement\PersistentResource $resource The resource to publish
      * @param CollectionInterface $collection The collection the given resource belongs to
      * @return void
      * @throws Exception
@@ -289,7 +289,7 @@ class GcsTarget implements TargetInterface
     /**
      * Unpublishes the given persistent resource
      *
-     * @param \TYPO3\Flow\ResourceManagement\PersistentResource $resource The resource to unpublish
+     * @param \Neos\Flow\ResourceManagement\PersistentResource $resource The resource to unpublish
      * @throws \Exception
      * @throws \Google_Service_Exception
      */
@@ -309,7 +309,7 @@ class GcsTarget implements TargetInterface
     /**
      * Returns the web accessible URI pointing to the specified persistent resource
      *
-     * @param \TYPO3\Flow\ResourceManagement\PersistentResource $resource Resource object or the resource hash of the resource
+     * @param \Neos\Flow\ResourceManagement\PersistentResource $resource Resource object or the resource hash of the resource
      * @return string The URI
      * @throws Exception
      */
