@@ -153,12 +153,12 @@ class GcsStorage implements WritableStorageInterface
     /**
      * Imports a resource (file) from the given URI or PHP resource stream into this storage.
      *
-     * On a successful import this method returns a Resource object representing the newly
+     * On a successful import this method returns a PersistentResource object representing the newly
      * imported persistent resource.
      *
      * @param string | resource $source The URI (or local path and filename) or the PHP resource stream to import the resource from
-     * @param string $collectionName Name of the collection the new Resource belongs to
-     * @return Resource A resource object representing the imported resource
+     * @param string $collectionName Name of the collection the new PersistentResource belongs to
+     * @return PersistentResource A resource object representing the imported resource
      * @throws \Neos\Flow\ResourceManagement\Storage\Exception
      */
     public function importResource($source, $collectionName)
@@ -190,15 +190,15 @@ class GcsStorage implements WritableStorageInterface
     /**
      * Imports a resource from the given string content into this storage.
      *
-     * On a successful import this method returns a Resource object representing the newly
+     * On a successful import this method returns a PersistentResource object representing the newly
      * imported persistent resource.
      *
      * The specified filename will be used when presenting the resource to a user. Its file extension is
      * important because the resource management will derive the IANA Media Type from it.
      *
      * @param string $content The actual content to import
-     * @param string $collectionName Name of the collection the new Resource belongs to
-     * @return Resource A resource object representing the imported resource
+     * @param string $collectionName Name of the collection the new PersistentResource belongs to
+     * @return PersistentResource A resource object representing the imported resource
      * @throws Exception
      * @api
      */
@@ -208,7 +208,7 @@ class GcsStorage implements WritableStorageInterface
         $md5Hash = md5($content);
         $filename = $sha1Hash;
 
-        $resource = new Resource();
+        $resource = new PersistentResource();
         $resource->setFilename($filename);
         $resource->setFileSize(strlen($content));
         $resource->setCollectionName($collectionName);
@@ -229,7 +229,7 @@ class GcsStorage implements WritableStorageInterface
      * Imports a resource (file) as specified in the given upload info array as a
      * persistent resource.
      *
-     * On a successful import this method returns a Resource object representing
+     * On a successful import this method returns a PersistentResource object representing
      * the newly imported persistent resource.
      *
      * @param array $uploadInfo An array detailing the resource to import (expected keys: name, tmp_name)
@@ -256,7 +256,7 @@ class GcsStorage implements WritableStorageInterface
         $sha1Hash = sha1_file($newSourcePathAndFilename);
         $md5Hash = md5_file($newSourcePathAndFilename);
 
-        $resource = new Resource();
+        $resource = new PersistentResource();
         $resource->setFilename($originalFilename);
         $resource->setCollectionName($collectionName);
         $resource->setFileSize(filesize($newSourcePathAndFilename));
@@ -279,15 +279,15 @@ class GcsStorage implements WritableStorageInterface
     }
 
     /**
-     * Deletes the storage data related to the given Resource object
+     * Deletes the storage data related to the given PersistentResource object
      *
-     * @param Resource $resource The Resource to delete the storage data of
+     * @param PersistentResource $resource The PersistentResource to delete the storage data of
      * @return bool TRUE if removal was successful
      * @throws \Exception
      * @throws \Google_Service_Exception
      * @api
      */
-    public function deleteResource(Resource $resource)
+    public function deleteResource(PersistentResource $resource)
     {
         try {
             $this->storageService->objects->delete($this->bucketName, $this->keyPrefix . $resource->getSha1());
@@ -305,12 +305,12 @@ class GcsStorage implements WritableStorageInterface
      * Returns a stream handle which can be used internally to open / copy the given resource
      * stored in this storage.
      *
-     * @param Resource $resource The resource stored in this storage
+     * @param PersistentResource $resource The resource stored in this storage
      * @return bool|resource A URI (for example the full path and filename) leading to the resource file or FALSE if it does not exist
      * @throws Exception
      * @api
      */
-    public function getStreamByResource(Resource $resource)
+    public function getStreamByResource(PersistentResource $resource)
     {
         try {
             $storageObject = $this->storageService->objects->get($this->bucketName, $this->keyPrefix . $resource->getSha1(), ['alt' => 'media']);
@@ -415,7 +415,7 @@ class GcsStorage implements WritableStorageInterface
      *
      * @param string $temporaryPathAndFilename Path and filename leading to the temporary file
      * @param string $collectionName Name of the collection to import into
-     * @return Resource The imported resource
+     * @return PersistentResource The imported resource
      * @throws \Exception
      * @throws \Google_Service_Exception
      */
@@ -424,7 +424,7 @@ class GcsStorage implements WritableStorageInterface
         $sha1Hash = sha1_file($temporaryPathAndFilename);
         $md5Hash = md5_file($temporaryPathAndFilename);
 
-        $resource = new Resource();
+        $resource = new PersistentResource();
         $resource->setFileSize(filesize($temporaryPathAndFilename));
         $resource->setCollectionName($collectionName);
         $resource->setSha1($sha1Hash);

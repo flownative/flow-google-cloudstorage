@@ -251,7 +251,7 @@ class GcsTarget implements TargetInterface
      * @return void
      * @throws Exception
      */
-    public function publishResource(Resource $resource, CollectionInterface $collection)
+    public function publishResource(PersistentResource $resource, CollectionInterface $collection)
     {
         $storage = $collection->getStorage();
         if ($storage instanceof GcsStorage) {
@@ -293,7 +293,7 @@ class GcsTarget implements TargetInterface
      * @throws \Exception
      * @throws \Google_Service_Exception
      */
-    public function unpublishResource(Resource $resource)
+    public function unpublishResource(PersistentResource $resource)
     {
         try {
             $objectName = $this->keyPrefix . $this->getRelativePublicationPathAndFilename($resource);
@@ -309,11 +309,11 @@ class GcsTarget implements TargetInterface
     /**
      * Returns the web accessible URI pointing to the specified persistent resource
      *
-     * @param \Neos\Flow\ResourceManagement\PersistentResource $resource Resource object or the resource hash of the resource
+     * @param \Neos\Flow\ResourceManagement\PersistentResource $resource PersistentResource object or the resource hash of the resource
      * @return string The URI
      * @throws Exception
      */
-    public function getPublicPersistentResourceUri(Resource $resource)
+    public function getPublicPersistentResourceUri(PersistentResource $resource)
     {
         if ($this->baseUri != '') {
             return $this->baseUri . $this->getRelativePublicationPathAndFilename($resource);
@@ -360,11 +360,11 @@ class GcsTarget implements TargetInterface
     }
 
     /**
-     * Determines and returns the relative path and filename for the given Storage Object or Resource. If the given
+     * Determines and returns the relative path and filename for the given Storage Object or PersistentResource. If the given
      * object represents a persistent resource, its own relative publication path will be empty. If the given object
      * represents a static resources, it will contain a relative path.
      *
-     * @param ResourceMetaDataInterface $object Resource or Storage Object
+     * @param ResourceMetaDataInterface $object PersistentResource or Storage Object
      * @return string The relative path and filename, for example "c828d0f88ce197be1aff7cc2e5e86b1244241ac6/MyPicture.jpg"
      */
     protected function getRelativePublicationPathAndFilename(ResourceMetaDataInterface $object)
