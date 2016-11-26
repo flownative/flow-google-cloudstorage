@@ -9,8 +9,6 @@ This [Flow](https://flow.typo3.org) package allows you to store assets (resource
 and publish resources to GCS. Because [Neos CMS](https://www.neos.io) is using Flow's resource management under the hood,
 this adaptor also works nicely for all kinds of assets in Neos.
 
-NOTE: This package is in beta stage. It works fine for some, but there is little real-world experience with it yet.
-
 ## Key Features
 
 - store all assets or only a specific collection in a private GCS bucket
