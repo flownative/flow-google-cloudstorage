@@ -63,7 +63,7 @@ Once the connector package is in place, you add a new publishing target which us
 to your collection.
 
 ```yaml
-TYPO3:
+Neos:
   Flow:
     resource:
       collections:
@@ -96,7 +96,7 @@ You start by adding a new storage with the GCS connector to your configuration. 
 assets by the remote storage system, you also add a target that contains your published resources.
 
 ```yaml
-TYPO3:
+Neos:
   Flow:
     resource:
       storages:
@@ -130,7 +130,7 @@ In order to copy the resources to the new storage we need a temporary collection
 publication target.
 
 ```yaml
-TYPO3:
+Neos:
   Flow:
     resource:
       collections:
@@ -152,7 +152,7 @@ current storage and publication target as on the new one.
 Now you can overwrite your old collection configuration and remove the temporary one:
 
 ```yaml
-TYPO3:
+Neos:
   Flow:
     resource:
       collections:
@@ -170,7 +170,7 @@ $ ./flow flow:cache:flush
 ## Full Example Configuration for GCS
 
 ```yaml
-TYPO3:
+Neos:
   Flow:
     resource:
       storages:
@@ -186,7 +186,7 @@ TYPO3:
           target: 'googlePersistentResourcesTarget'
       targets:
         localWebDirectoryPersistentResourcesTarget:
-          target: 'TYPO3\Flow\Resource\Target\FileSystemTarget'
+          target: 'Neos\Flow\ResourceManagement\Target\FileSystemTarget'
           targetOptions:
             path: '%FLOW_PATH_WEB%_Resources/Persistent/'
             baseUri: '_Resources/Persistent/'
