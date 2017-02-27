@@ -47,7 +47,6 @@ class GcsCommandController extends CommandController
 
         $storageObject = new \Google_Service_Storage_StorageObject();
         $storageObject->setName('Flownative.Google.CloudStorage.ConnectionTest.txt');
-        $storageObject->setContentType('text/plain');
         $storageObject->setSize(4);
 
         $postBody = [

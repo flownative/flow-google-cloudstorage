@@ -393,7 +393,7 @@ class GcsStorage implements WritableStorageInterface
 
         foreach ($this->resourceRepository->findByCollectionName($collection->getName()) as $resource) {
             /** @var \Neos\Flow\ResourceManagement\PersistentResource $resource */
-            $object = new Object();
+            $object = new StorageObject();
             $object->setFilename($resource->getFilename());
             $object->setSha1($resource->getSha1());
             $object->setStream(function () use ($that, $bucketName, $keyPrefix, $storageService, $resource) {
