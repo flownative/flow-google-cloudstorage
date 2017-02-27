@@ -46,6 +46,20 @@ Flownative:
             privateKeyP12PathAndFilename: 'Data/Secrets/MyGoogleProject-abc123457def.p12'
 ```
 
+Instead of using a file, the private key can also be specified directly, as a base64-encoded string. This allows for
+providing the private key via an environment variable:
+
+```yaml
+Flownative:
+  Google:
+    CloudStorage:
+      profiles:
+        default:
+          credentials:
+            clientEmail: '123456789012-abc123defg456hijklmnopqrstuvwxyz@developer.gserviceaccount.com'
+            privateKeyP12Base64Encoded: '%env:SOME_ENVIRONMENT_VARIABLE_WITH_PRIVATE_KEY%'
+```
+
 You can test your settings by executing the `connect` command with a bucket of your choice.
 
 ```bash
