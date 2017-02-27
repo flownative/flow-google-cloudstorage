@@ -374,7 +374,19 @@ class GcsTarget implements TargetInterface
         } else {
             $pathAndFilename = $object->getSha1() . '/' . $object->getFilename();
         }
-
-        return $pathAndFilename;
+        return $this->encodeRelativePathAndFilenameForUri($pathAndFilename);
     }
+
+    /**
+     * Applies rawurlencode() to all path segments of the given $relativePathAndFilename
+     *
+     * @param string $relativePathAndFilename
+     * @return string
+     */
+    protected function encodeRelativePathAndFilenameForUri($relativePathAndFilename)
+    {
+        return implode('/', array_map('rawurlencode', explode('/', $relativePathAndFilename)));
+    }
+
 }
+
