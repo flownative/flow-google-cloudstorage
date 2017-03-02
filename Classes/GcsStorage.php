@@ -263,17 +263,7 @@ class GcsStorage implements WritableStorageInterface
         $resource->setSha1($sha1Hash);
         $resource->setMd5($md5Hash);
 
-        $storageObject = new \Google_Service_Storage_StorageObject();
-        $storageObject->setBucket($this->bucketName);
-        $storageObject->setName($this->keyPrefix . $sha1Hash);
-        $storageObject->setSize($resource->getFileSize());
-
-        $postBody = [
-            'data' => file_get_contents($newSourcePathAndFilename),
-            'uploadType' => 'media'
-        ];
-
-        $this->storageService->objects->insert($this->bucketName, $storageObject, $postBody);
+        $this->insertIntoBucket($this->bucketName, $this->keyPrefix . $sha1Hash, $newSourcePathAndFilename);
 
         return $resource;
     }
@@ -379,7 +369,6 @@ class GcsStorage implements WritableStorageInterface
      * Retrieve all Objects stored in this storage, filtered by the given collection name
      *
      * @param CollectionInterface $collection
-     * @internal param string $collectionName
      * @return array<\Neos\Flow\ResourceManagement\Storage\StorageObject>
      * @api
      */
@@ -442,17 +431,55 @@ class GcsStorage implements WritableStorageInterface
         }
 
         if (!$alreadyExists) {
-            $storageObject = new \Google_Service_Storage_StorageObject();
-            $storageObject->setBucket($this->bucketName);
-            $storageObject->setName($this->keyPrefix . $sha1Hash);
-            $storageObject->setSize($resource->getFileSize());
+            $this->insertIntoBucket($this->bucketName, $this->keyPrefix . $sha1Hash, $temporaryPathAndFilename);
 
-            $this->storageService->objects->insert($this->bucketName, $storageObject, ['data' => file_get_contents($temporaryPathAndFilename), 'uploadType' => 'media']);
             $this->systemLogger->log(sprintf('Successfully imported resource as object "%s" into bucket "%s" with MD5 hash "%s"', $sha1Hash, $this->bucketName, $resource->getMd5() ?: 'unknown'), LOG_INFO);
         } else {
             $this->systemLogger->log(sprintf('Did not import resource as object "%s" into bucket "%s" because that object already existed.', $sha1Hash, $this->bucketName), LOG_INFO);
         }
 
         return $resource;
+    }
+
+    /**
+     * Insert the contents of $pathAndFilename into the given $bucketName as $name.
+     *
+     * @param string $bucketName
+     * @param string $name
+     * @param string $pathAndFilename
+     * @return void
+     */
+    protected function insertIntoBucket($bucketName, $name, $pathAndFilename)
+    {
+        $chunkSizeBytes = 100 * 1024 * 1024;
+
+        $storageObject = new \Google_Service_Storage_StorageObject();
+        $storageObject->setBucket($bucketName);
+        $storageObject->setName($name);
+        $storageObject->setSize(filesize($pathAndFilename));
+
+        $this->storageService->getClient()->setDefer(true);
+        $request = $this->storageService->objects->insert($bucketName, $storageObject, ['name' => $name, 'uploadType' => 'resumable']);
+
+        // Create a media file upload to represent our upload process.
+        $media = new \Google_Http_MediaFileUpload(
+            $this->storageService->getClient(),
+            $request,
+            'text/plain',
+            null,
+            true,
+            $chunkSizeBytes
+        );
+        $media->setFileSize(filesize($pathAndFilename));
+
+        $status = false;
+        $handle = fopen($pathAndFilename, 'rb');
+        while (!$status && !feof($handle)) {
+            $chunk = fread($handle, $chunkSizeBytes);
+            $status = $media->nextChunk($chunk);
+        }
+        fclose($handle);
+
+        $this->storageService->getClient()->setDefer(false);
     }
 }
