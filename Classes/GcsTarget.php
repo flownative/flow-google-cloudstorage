@@ -203,7 +203,8 @@ class GcsTarget implements TargetInterface
                 $storageObject->setCacheControl('public, max-age=1209600');
 
                 $parameters = [
-                    'destinationPredefinedAcl' => 'publicRead'
+                    'destinationPredefinedAcl' => 'publicRead',
+                    'mimeType' => $object->getMediaType()
                 ];
                 try {
                     $this->storageService->objects->copy($storageBucketName, $storage->getKeyPrefix() . $object->getSha1(), $this->bucketName, $objectName, $storageObject, $parameters);
@@ -268,7 +269,8 @@ class GcsTarget implements TargetInterface
             $storageObject->setCacheControl('public, max-age=1209600');
 
             $parameters = [
-                'destinationPredefinedAcl' => 'publicRead'
+                'destinationPredefinedAcl' => 'publicRead',
+                'mimeType' => $resource->getMediaType()
             ];
             try {
                 $this->storageService->objects->copy($storage->getBucketName(), $storage->getKeyPrefix() . $resource->getSha1(), $this->bucketName, $objectName, $storageObject, $parameters);
@@ -345,7 +347,8 @@ class GcsTarget implements TargetInterface
             $parameters = [
                 'data' => stream_get_contents($sourceStream),
                 'uploadType' => 'media',
-                'predefinedAcl' => 'publicRead'
+                'predefinedAcl' => 'publicRead',
+                'mimeType' => $metaData->getMediaType()
             ];
 
             $this->storageService->objects->insert($this->bucketName, $storageObject, $parameters);

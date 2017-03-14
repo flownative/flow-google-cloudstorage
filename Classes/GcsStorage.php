@@ -220,7 +220,8 @@ class GcsStorage implements WritableStorageInterface
         $storageObject->setName($this->keyPrefix . $sha1Hash);
         $storageObject->setSize($resource->getFileSize());
 
-        $this->storageService->objects->insert($this->bucketName, $storageObject, ['data' => $content, 'uploadType' => 'media']);
+        $this->storageService->objects->insert($this->bucketName, $storageObject,
+            ['data' => $content, 'uploadType' => 'media', 'mimeType' => $resource->getMediaType()]);
 
         return $resource;
     }
@@ -270,7 +271,8 @@ class GcsStorage implements WritableStorageInterface
 
         $postBody = [
             'data' => file_get_contents($newSourcePathAndFilename),
-            'uploadType' => 'media'
+            'uploadType' => 'media',
+            'mimeType' => $resource->getMediaType()
         ];
 
         $this->storageService->objects->insert($this->bucketName, $storageObject, $postBody);
@@ -447,7 +449,7 @@ class GcsStorage implements WritableStorageInterface
             $storageObject->setName($this->keyPrefix . $sha1Hash);
             $storageObject->setSize($resource->getFileSize());
 
-            $this->storageService->objects->insert($this->bucketName, $storageObject, ['data' => file_get_contents($temporaryPathAndFilename), 'uploadType' => 'media']);
+            $this->storageService->objects->insert($this->bucketName, $storageObject, ['data' => file_get_contents($temporaryPathAndFilename), 'uploadType' => 'media', 'mimeType' => $resource->getMediaType()]);
             $this->systemLogger->log(sprintf('Successfully imported resource as object "%s" into bucket "%s" with MD5 hash "%s"', $sha1Hash, $this->bucketName, $resource->getMd5() ?: 'unknown'), LOG_INFO);
         } else {
             $this->systemLogger->log(sprintf('Did not import resource as object "%s" into bucket "%s" because that object already existed.', $sha1Hash, $this->bucketName), LOG_INFO);
