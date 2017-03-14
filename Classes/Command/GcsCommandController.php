@@ -51,7 +51,8 @@ class GcsCommandController extends CommandController
 
         $postBody = [
             'data' => 'test',
-            'uploadType' => 'media'
+            'uploadType' => 'media',
+            'mimeType' => 'text/plain'
         ];
 
         $this->outputLine('Writing test object into bucket (%s) ...', [$bucket]);
