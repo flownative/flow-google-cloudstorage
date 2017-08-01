@@ -12,3 +12,4 @@ Flownative:
             # the "privateKeyP12" option wins.
             privateKeyP12PathAndFilename: 'Data/Secrets/MyGoogleProject-abc123457def.p12'
             privateKeyP12Base64Encoded: ''
+      continuesFailureLimit: 50

@@ -16,6 +16,7 @@ use Neos\Flow\Log\SystemLoggerInterface;
 use Neos\Flow\ResourceManagement\CollectionInterface;
 use Neos\Flow\ResourceManagement\Exception;
 use Neos\Flow\ResourceManagement\PersistentResource;
+use Neos\Flow\ResourceManagement\Publishing\MessageCollector;
 use Neos\Flow\ResourceManagement\ResourceManager;
 use Neos\Flow\ResourceManagement\ResourceMetaDataInterface;
 use Neos\Flow\ResourceManagement\Target\TargetInterface;
@@ -93,6 +94,18 @@ class GcsTarget implements TargetInterface
      * @var array
      */
     protected $existingObjectsInfo;
+
+	/**
+	 * @Flow\Inject
+	 * @var MessageCollector
+	 */
+	protected $messageCollector;
+
+	/**
+	 * @Flow\InjectConfiguration("continuesFailureLimit")
+	 * @var int
+	 */
+	protected $continuesFailureLimit;
 
     /**
      * Constructor
@@ -191,6 +204,7 @@ class GcsTarget implements TargetInterface
             if ($storageBucketName === $this->bucketName && $storage->getKeyPrefix() === $this->keyPrefix) {
                 throw new Exception(sprintf('Could not publish collection %s because the source and target bucket is the same, with identical key prefixes. Either choose a different bucket or at least key prefix for the target.', $collection->getName()), 1446721125);
             }
+           $failureCounter = 0;
             foreach ($collection->getObjects() as $object) {
                 /** @var \Neos\Flow\ResourceManagement\Storage\StorageObject $object */
                 $objectName = $this->keyPrefix . $this->getRelativePublicationPathAndFilename($object);
@@ -208,8 +222,15 @@ class GcsTarget implements TargetInterface
                 ];
                 try {
                     $this->storageService->objects->copy($storageBucketName, $storage->getKeyPrefix() . $object->getSha1(), $this->bucketName, $objectName, $storageObject, $parameters);
+                    $failureCounter = 0;
                 } catch (\Google_Service_Exception $e) {
-                    throw new Exception(sprintf('Could not copy resource with SHA1 hash %s of collection %s from bucket %s to %s: %s', $object->getSha1(), $collection->getName(), $storageBucketName, $this->bucketName, $e->getMessage()), 1446721418);
+                    if($this->continuesFailureLimit == $failureCounter ){
+                       throw new Exception(sprintf('There where more then %s continues failures and the collection "%s" stopped to publish further resources', $failureCounter, $collection->getName()), 1501586031);
+                    }
+                    $failureCounter ++;
+                    $this->messageCollector->append(sprintf('Could not copy resource with SHA1 hash %s of collection %s from bucket %s to %s: %s', $object->getSha1(), $collection->getName(), $storageBucketName, $this->bucketName, $e->getMessage()));;
+                    unset($obsoleteObjects[$this->getRelativePublicationPathAndFilename($object)]);
+                    continue;
                 }
                 $this->systemLogger->log(sprintf('Successfully copied resource as object "%s" (MD5: %s) from bucket "%s" to bucket "%s"', $objectName, $object->getMd5() ?: 'unknown', $storageBucketName, $this->bucketName), LOG_DEBUG);
                 unset($obsoleteObjects[$this->getRelativePublicationPathAndFilename($object)]);
