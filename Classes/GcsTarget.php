@@ -241,6 +241,7 @@ class GcsTarget implements TargetInterface
      */
     public function getPublicStaticResourceUri($relativePathAndFilename)
     {
+        $relativePathAndFilename = $this->encodeRelativePathAndFilenameForUri($relativePathAndFilename);
         return $this->storageService->objects->get($this->bucketName, $this->keyPrefix . $relativePathAndFilename)->getMediaLink();
     }
 
@@ -317,10 +318,11 @@ class GcsTarget implements TargetInterface
      */
     public function getPublicPersistentResourceUri(PersistentResource $resource)
     {
+        $relativePathAndFilename = $this->encodeRelativePathAndFilenameForUri($this->getRelativePublicationPathAndFilename($resource));
         if ($this->baseUri != '') {
-            return $this->baseUri . $this->getRelativePublicationPathAndFilename($resource);
+            return $this->baseUri . $relativePathAndFilename;
         } else {
-            return $this->storageService->objects->get($this->bucketName, $this->keyPrefix . $this->getRelativePublicationPathAndFilename($resource))->getMediaLink();
+            return $this->storageService->objects->get($this->bucketName, $this->keyPrefix . $relativePathAndFilename)->getMediaLink();
         }
     }
 
@@ -377,7 +379,7 @@ class GcsTarget implements TargetInterface
         } else {
             $pathAndFilename = $object->getSha1() . '/' . $object->getFilename();
         }
-        return $this->encodeRelativePathAndFilenameForUri($pathAndFilename);
+        return $pathAndFilename;
     }
 
     /**
