@@ -208,10 +208,8 @@ class GcsTarget implements TargetInterface
                     $storageBucket->object($storage->getKeyPrefix() . $object->getSha1())->copy($targetBucket, [
                         'name' => $targetObjectName,
                         'predefinedAcl' => 'publicRead',
-                        'metadata' => [
-                            'contentType' => $object->getMediaType(),
-                            'cacheControl' => 'public, max-age=1209600',
-                        ]
+                        'contentType' => $object->getMediaType(),
+                        'cacheControl' => 'public, max-age=1209600',
                     ]);
                 } catch (GoogleException $e) {
                     throw new Exception(sprintf('Could not copy resource with SHA1 hash %s of collection %s from bucket %s to %s: %s', $object->getSha1(), $collection->getName(), $storageBucketName, $this->bucketName, $e->getMessage()), 1446721418);
@@ -269,10 +267,8 @@ class GcsTarget implements TargetInterface
                 $storageBucket->object($storage->getKeyPrefix() . $resource->getSha1())->copy($this->getCurrentBucket(), [
                     'name' => $targetObjectName,
                     'predefinedAcl' => 'publicRead',
-                    'metadata' => [
-                        'contentType' => $resource->getMediaType(),
-                        'cacheControl' => 'public, max-age=1209600',
-                    ]
+                    'contentType' => $resource->getMediaType(),
+                    'cacheControl' => 'public, max-age=1209600',
                 ]);
 
             } catch (GoogleException $e) {
@@ -334,22 +330,12 @@ class GcsTarget implements TargetInterface
     protected function publishFile($sourceStream, $relativeTargetPathAndFilename, ResourceMetaDataInterface $metaData)
     {
         $objectName = $this->keyPrefix . $relativeTargetPathAndFilename;
-
-        $storageObject = new \Google_Service_Storage_StorageObject();
-        $storageObject->setBucket($this->bucketName);
-        $storageObject->setName($objectName);
-        $storageObject->setContentType($metaData->getMediaType());
-        $storageObject->setSize($metaData->getFileSize());
-        $storageObject->setCacheControl('public, max-age=1209600');
-
         try {
             $this->getCurrentBucket()->upload($sourceStream, [
                 'name' => $objectName,
                 'predefinedAcl' => 'publicRead',
-                'metadata' => [
-                    'contentType' => $metaData->getMediaType(),
-                    'cacheControl' => 'public, max-age=1209600',
-                ]
+                'contentType' => $metaData->getMediaType(),
+                'cacheControl' => 'public, max-age=1209600',
             ]);
 
             $this->systemLogger->log(sprintf('Successfully published resource as object "%s" in bucket "%s" with MD5 hash "%s"', $objectName, $this->bucketName, $metaData->getMd5() ?: 'unknown'), LOG_DEBUG);
