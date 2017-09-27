@@ -11,7 +11,7 @@ namespace Flownative\Google\CloudStorage;
  * source code.
  */
 
-use Google_Client;
+use Google\Cloud\Core\ServiceBuilder;
 use TYPO3\Flow\Annotations as Flow;
 
 /**
@@ -37,7 +37,7 @@ class StorageFactory
      * Creates a new Storage instance and authenticates agains the Google API
      *
      * @param string $credentialsProfileName
-     * @return \Google_Service_Storage
+     * @return \Google\Cloud\Storage\StorageClient
      * @throws Exception
      */
     public function create($credentialsProfileName = 'default')
@@ -46,36 +46,25 @@ class StorageFactory
             throw new Exception(sprintf('The specified Google Cloud Storage credentials profile "%s" does not exist, please check your settings.', $credentialsProfileName), 1446553024);
         }
 
-        if (!empty($this->credentialProfiles[$credentialsProfileName]['credentials']['privateKeyP12Base64Encoded'])) {
-            $privateKey = base64_decode($this->credentialProfiles[$credentialsProfileName]['credentials']['privateKeyP12Base64Encoded']);
+        if (!empty($this->credentialProfiles[$credentialsProfileName]['credentials']['privateKeyJsonBase64Encoded'])) {
+            $googleCloud = new ServiceBuilder([
+                'keyFile' => json_decode(base64_decode($this->credentialProfiles[$credentialsProfileName]['credentials']['privateKeyJsonBase64Encoded']))
+            ]);
         } else {
-            if (substr($this->credentialProfiles[$credentialsProfileName]['credentials']['privateKeyP12PathAndFilename'], 0, 1) !== '/') {
-                $privateKeyPathAndFilename = FLOW_PATH_ROOT . $this->credentialProfiles[$credentialsProfileName]['credentials']['privateKeyP12PathAndFilename'];
+            if (substr($this->credentialProfiles[$credentialsProfileName]['credentials']['privateKeyJsonPathAndFilename'], 0, 1) !== '/') {
+                $privateKeyPathAndFilename = FLOW_PATH_ROOT . $this->credentialProfiles[$credentialsProfileName]['credentials']['privateKeyJsonPathAndFilename'];
             } else {
-                $privateKeyPathAndFilename = $this->credentialProfiles[$credentialsProfileName]['credentials']['privateKeyP12PathAndFilename'];
+                $privateKeyPathAndFilename = $this->credentialProfiles[$credentialsProfileName]['credentials']['privateKeyJsonPathAndFilename'];
             }
 
             if (!file_exists($privateKeyPathAndFilename)) {
                 throw new Exception(sprintf('The Google Cloud Storage private key file "%s" does not exist. Either the file is missing or you need to adjust your settings.', $privateKeyPathAndFilename), 1446553054);
             }
-            $privateKey = file_get_contents($privateKeyPathAndFilename);
+            $googleCloud = new ServiceBuilder([
+                'keyFilePath' => $privateKeyPathAndFilename
+            ]);
         }
 
-        $credentials = new \Google_Auth_AssertionCredentials(
-            $this->credentialProfiles[$credentialsProfileName]['credentials']['clientEmail'],
-            [ \Google_Service_Storage::DEVSTORAGE_READ_WRITE ],
-            $privateKey
-        );
-
-        $temporaryTargetPathAndFilename = $this->environment->getPathToTemporaryDirectory() . 'Flownative_Google_CloudStorage_Temp';
-
-        $googleClient = new \Google_Client();
-        $googleClient->setClassConfig('Google_Cache_File', 'directory',$temporaryTargetPathAndFilename);
-        $googleClient->setAssertionCredentials($credentials);
-        if ($googleClient->isAccessTokenExpired()) {
-            $googleClient->getRefreshToken();
-        }
-
-        return new \Google_Service_Storage($googleClient);
+        return $googleCloud->storage();
     }
 }

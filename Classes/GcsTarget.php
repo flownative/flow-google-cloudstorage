@@ -11,6 +11,11 @@ namespace Flownative\Google\CloudStorage;
  * source code.
  */
 
+use Google\Cloud\Core\Exception\GoogleException;
+use Google\Cloud\Core\Exception\NotFoundException;
+use Google\Cloud\Storage\Bucket;
+use Google\Cloud\Storage\StorageClient;
+use Google\Cloud\Storage\StorageObject;
 use TYPO3\Flow\Annotations as Flow;
 use TYPO3\Flow\Log\SystemLoggerInterface;
 use TYPO3\Flow\Resource\CollectionInterface;
@@ -85,9 +90,14 @@ class GcsTarget implements TargetInterface
     protected $storageFactory;
 
     /**
-     * @var \Google_Service_Storage
+     * @var StorageClient
      */
-    protected $storageService;
+    protected $storageClient;
+
+    /**
+     * @var Bucket
+     */
+    protected $currentBucket;
 
     /**
      * @var array
@@ -133,7 +143,7 @@ class GcsTarget implements TargetInterface
      */
     public function initializeObject()
     {
-        $this->storageService = $this->storageFactory->create();
+        $this->storageClient = $this->storageFactory->create();
     }
 
     /**
@@ -172,18 +182,14 @@ class GcsTarget implements TargetInterface
                 'prefix' => $this->keyPrefix
             ];
 
-            do {
-                $storageObjects = $this->storageService->objects->listObjects($this->bucketName, $parameters);
-                foreach ($storageObjects->getItems() as $storageObject) {
-                    /** @var \Google_Service_Storage_StorageObject $storageObject */
-                    $this->existingObjectsInfo[$storageObject->getName()] = true;
-                }
-                $pageToken = $storageObjects->getNextPageToken();
-                $parameters['pageToken'] = $pageToken;
-            } while ($pageToken !== null);
+            foreach ($this->getCurrentBucket()->objects($parameters) as $storageObject) {
+                /** @var StorageObject $storageObject */
+                $this->existingObjectsInfo[$storageObject->name()] = true;
+            }
         }
 
         $obsoleteObjects = $this->existingObjectsInfo;
+        $targetBucket = $this->getCurrentBucket();
 
         $storage = $collection->getStorage();
         if ($storage instanceof GcsStorage) {
@@ -191,27 +197,26 @@ class GcsTarget implements TargetInterface
             if ($storageBucketName === $this->bucketName && $storage->getKeyPrefix() === $this->keyPrefix) {
                 throw new Exception(sprintf('Could not publish collection %s because the source and target bucket is the same, with identical key prefixes. Either choose a different bucket or at least key prefix for the target.', $collection->getName()), 1446721125);
             }
+
+            $storageBucket = $this->storageClient->bucket($storageBucketName);
+
             foreach ($collection->getObjects() as $object) {
                 /** @var \TYPO3\Flow\Resource\Storage\Object $object */
-                $objectName = $this->keyPrefix . $this->getRelativePublicationPathAndFilename($object);
+                $targetObjectName = $this->keyPrefix . $this->getRelativePublicationPathAndFilename($object);
 
-                $storageObject = new \Google_Service_Storage_StorageObject();
-                $storageObject->setBucket($this->bucketName);
-                $storageObject->setName($objectName);
-                $storageObject->setContentType($object->getMediaType());
-                $storageObject->setSize($object->getFileSize());
-                $storageObject->setCacheControl('public, max-age=1209600');
-
-                $parameters = [
-                    'destinationPredefinedAcl' => 'publicRead',
-                    'mimeType' => $object->getMediaType()
-                ];
                 try {
-                    $this->storageService->objects->copy($storageBucketName, $storage->getKeyPrefix() . $object->getSha1(), $this->bucketName, $objectName, $storageObject, $parameters);
-                } catch (\Google_Service_Exception $e) {
+                    $storageBucket->object($storage->getKeyPrefix() . $object->getSha1())->copy($targetBucket, [
+                        'name' => $targetObjectName,
+                        'predefinedAcl' => 'publicRead',
+                        'metadata' => [
+                            'contentType' => $object->getMediaType(),
+                            'cacheControl' => 'public, max-age=1209600',
+                        ]
+                    ]);
+                } catch (GoogleException $e) {
                     throw new Exception(sprintf('Could not copy resource with SHA1 hash %s of collection %s from bucket %s to %s: %s', $object->getSha1(), $collection->getName(), $storageBucketName, $this->bucketName, $e->getMessage()), 1446721418);
                 }
-                $this->systemLogger->log(sprintf('Successfully copied resource as object "%s" (MD5: %s) from bucket "%s" to bucket "%s"', $objectName, $object->getMd5() ?: 'unknown', $storageBucketName, $this->bucketName), LOG_DEBUG);
+                $this->systemLogger->log(sprintf('Successfully copied resource as object "%s" (MD5: %s) from bucket "%s" to bucket "%s"', $targetObjectName, $object->getMd5() ?: 'unknown', $storageBucketName, $this->bucketName), LOG_DEBUG);
                 unset($obsoleteObjects[$this->getRelativePublicationPathAndFilename($object)]);
             }
         } else {
@@ -224,11 +229,8 @@ class GcsTarget implements TargetInterface
 
         foreach (array_keys($obsoleteObjects) as $relativePathAndFilename) {
             try {
-                $this->storageService->objects->delete($this->bucketName, $this->keyPrefix . $relativePathAndFilename);
-            } catch (\Google_Service_Exception $e) {
-                if ($e->getCode() !== 404) {
-                    throw $e;
-                }
+                $targetBucket->object($this->keyPrefix . $relativePathAndFilename)->delete();
+            } catch (NotFoundException $e) {
             }
         }
     }
@@ -241,7 +243,7 @@ class GcsTarget implements TargetInterface
      */
     public function getPublicStaticResourceUri($relativePathAndFilename)
     {
-        return $this->storageService->objects->get($this->bucketName, $this->keyPrefix . $relativePathAndFilename)->getMediaLink();
+        return 'https://storage.googleapis.com/' . $this->bucketName . '/'. $this->keyPrefix . $relativePathAndFilename;
     }
 
     /**
@@ -259,26 +261,24 @@ class GcsTarget implements TargetInterface
             if ($storage->getBucketName() === $this->bucketName && $storage->getKeyPrefix() === $this->keyPrefix) {
                 throw new Exception(sprintf('Could not publish resource with SHA1 hash %s of collection %s because the source and target bucket is the same, with identical key prefixes. Either choose a different bucket or at least key prefix for the target.', $resource->getSha1(), $collection->getName()), 1446721574);
             }
-            $objectName = $this->keyPrefix . $this->getRelativePublicationPathAndFilename($resource);
+            $targetObjectName = $this->keyPrefix . $this->getRelativePublicationPathAndFilename($resource);
+            $storageBucket = $this->storageClient->bucket($storage->getBucketName());
 
-            $storageObject = new \Google_Service_Storage_StorageObject();
-            $storageObject->setBucket($this->bucketName);
-            $storageObject->setName($objectName);
-            $storageObject->setContentType($resource->getMediaType());
-            $storageObject->setSize($resource->getFileSize());
-            $storageObject->setCacheControl('public, max-age=1209600');
-
-            $parameters = [
-                'destinationPredefinedAcl' => 'publicRead',
-                'mimeType' => $resource->getMediaType()
-            ];
             try {
-                $this->storageService->objects->copy($storage->getBucketName(), $storage->getKeyPrefix() . $resource->getSha1(), $this->bucketName, $objectName, $storageObject, $parameters);
-            } catch (\Google_Service_Exception $e) {
+                $storageBucket->object($storage->getKeyPrefix() . $resource->getSha1())->copy($this->getCurrentBucket(), [
+                    'name' => $targetObjectName,
+                    'predefinedAcl' => 'publicRead',
+                    'metadata' => [
+                        'contentType' => $resource->getMediaType(),
+                        'cacheControl' => 'public, max-age=1209600',
+                    ]
+                ]);
+
+            } catch (GoogleException $e) {
                 throw new Exception(sprintf('Could not copy resource with SHA1 hash %s of collection %s from bucket %s to %s: %s', $resource->getSha1(), $collection->getName(), $storage->getBucketName(), $this->bucketName, $e->getMessage()), 1446721791);
             }
 
-            $this->systemLogger->log(sprintf('Successfully published resource as object "%s" (MD5: %s) by copying from bucket "%s" to bucket "%s"', $objectName, $resource->getMd5() ?: 'unknown', $storage->getBucketName(), $this->bucketName), LOG_DEBUG);
+            $this->systemLogger->log(sprintf('Successfully published resource as object "%s" (MD5: %s) by copying from bucket "%s" to bucket "%s"', $targetObjectName, $resource->getMd5() ?: 'unknown', $storage->getBucketName(), $this->bucketName), LOG_DEBUG);
         } else {
             $sourceStream = $resource->getStream();
             if ($sourceStream === false) {
@@ -299,12 +299,9 @@ class GcsTarget implements TargetInterface
     {
         try {
             $objectName = $this->keyPrefix . $this->getRelativePublicationPathAndFilename($resource);
-            $this->storageService->objects->delete($this->bucketName, $objectName);
+            $this->getCurrentBucket()->object($objectName)->delete();
             $this->systemLogger->log(sprintf('Successfully unpublished resource as object "%s" (MD5: %s) from bucket "%s"', $objectName, $resource->getMd5() ?: 'unknown', $this->bucketName), LOG_DEBUG);
-        } catch (\Google_Service_Exception $e) {
-            if ($e->getCode() !== 404) {
-                throw $e;
-            }
+        } catch (NotFoundException $e) {
         }
     }
 
@@ -320,7 +317,7 @@ class GcsTarget implements TargetInterface
         if ($this->baseUri != '') {
             return $this->baseUri . $this->getRelativePublicationPathAndFilename($resource);
         } else {
-            return $this->storageService->objects->get($this->bucketName, $this->keyPrefix . $this->getRelativePublicationPathAndFilename($resource))->getMediaLink();
+            return 'https://storage.googleapis.com/' . $this->bucketName . '/'. $this->keyPrefix . $relativePathAndFilename;
         }
     }
 
@@ -344,14 +341,15 @@ class GcsTarget implements TargetInterface
         $storageObject->setCacheControl('public, max-age=1209600');
 
         try {
-            $parameters = [
-                'data' => stream_get_contents($sourceStream),
-                'uploadType' => 'media',
+            $this->getCurrentBucket()->upload($sourceStream, [
+                'name' => $objectName,
                 'predefinedAcl' => 'publicRead',
-                'mimeType' => $metaData->getMediaType()
-            ];
+                'metadata' => [
+                    'contentType' => $metaData->getMediaType(),
+                    'cacheControl' => 'public, max-age=1209600',
+                ]
+            ]);
 
-            $this->storageService->objects->insert($this->bucketName, $storageObject, $parameters);
             $this->systemLogger->log(sprintf('Successfully published resource as object "%s" in bucket "%s" with MD5 hash "%s"', $objectName, $this->bucketName, $metaData->getMd5() ?: 'unknown'), LOG_DEBUG);
         } catch (\Exception $e) {
             $this->systemLogger->log(sprintf('Failed publishing resource as object "%s" in bucket "%s" with MD5 hash "%s": %s', $objectName, $this->bucketName, $metaData->getMd5() ?: 'unknown', $e->getMessage()), LOG_DEBUG);
@@ -391,5 +389,15 @@ class GcsTarget implements TargetInterface
         return implode('/', array_map('rawurlencode', explode('/', $relativePathAndFilename)));
     }
 
+    /**
+     * @return Bucket
+     */
+    protected function getCurrentBucket()
+    {
+        if ($this->currentBucket === null) {
+            $this->currentBucket = $this->storageClient->bucket($this->bucketName);
+        }
+        return $this->currentBucket;
+    }
 }
 

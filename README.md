@@ -5,7 +5,7 @@
 
 # Google Cloud Storage Adaptor for Neos 2.x and Flow 3.x
 
-This [Flow](https://flow.typo3.org) package allows you to store assets (resources) in [Google Cloud Storage](https://cloud.google.com/storage/)
+This [Flow](https://flow.neos.io) package allows you to store assets (resources) in [Google Cloud Storage](https://cloud.google.com/storage/)
 and publish resources to GCS. Because [Neos CMS](https://www.neos.io) is using Flow's resource management under the hood,
 this adaptor also works nicely for all kinds of assets in Neos.
 
@@ -43,7 +43,7 @@ Flownative:
         default:
           credentials:
             clientEmail: '123456789012-abc123defg456hijklmnopqrstuvwxyz@developer.gserviceaccount.com'
-            privateKeyP12PathAndFilename: 'Data/Secrets/MyGoogleProject-abc123457def.p12'
+            privateKeyJsonPathAndFilename: 'Data/Secrets/MyGoogleProject-abc123457def.json'
 ```
 
 Instead of using a file, the private key can also be specified directly, as a base64-encoded string. This allows for
@@ -57,7 +57,7 @@ Flownative:
         default:
           credentials:
             clientEmail: '123456789012-abc123defg456hijklmnopqrstuvwxyz@developer.gserviceaccount.com'
-            privateKeyP12Base64Encoded: '%env:SOME_ENVIRONMENT_VARIABLE_WITH_PRIVATE_KEY%'
+            privateKeyJsonBase64Encoded: '%env:SOME_ENVIRONMENT_VARIABLE_WITH_PRIVATE_KEY%'
 ```
 
 You can test your settings by executing the `connect` command with a bucket of your choice.
@@ -221,5 +221,5 @@ Flownative:
         default:
           credentials:
             clientEmail: '123456789012-abc123defg456hijklmnopqrstuvwxyz@developer.gserviceaccount.com'
-            privateKeyP12PathAndFilename: 'Data/Secrets/MyGoogleProject-abc123457def.p12'
+            privateKeyJsonPathAndFilename: 'Data/Secrets/MyGoogleProject-abc123457def.json'
 ```

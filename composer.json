@@ -15,7 +15,8 @@
     ],
     "require": {
         "typo3/flow": "3.*",
-        "google/apiclient": "1.1.*"
+        "google/cloud-storage": "1.1.*",
+        "guzzlehttp/psr7": "1.*"
     },
     "autoload": {
         "psr-4": {
