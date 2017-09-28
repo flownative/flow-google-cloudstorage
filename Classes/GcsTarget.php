@@ -310,8 +310,9 @@ class GcsTarget implements TargetInterface
      */
     public function getPublicPersistentResourceUri(Resource $resource)
     {
+        $relativePathAndFilename = $this->getRelativePublicationPathAndFilename($resource);
         if ($this->baseUri != '') {
-            return $this->baseUri . $this->getRelativePublicationPathAndFilename($resource);
+            return $this->baseUri . $relativePathAndFilename;
         } else {
             return 'https://storage.googleapis.com/' . $this->bucketName . '/'. $this->keyPrefix . $relativePathAndFilename;
         }
