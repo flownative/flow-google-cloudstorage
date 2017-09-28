@@ -23,7 +23,7 @@ The Flownative Google Cloud Storage connector is installed as a regular Flow pac
 project, simply include `flownative/google-cloudstorage` into the dependencies of your Flow or Neos distribution:
 
 ```bash
-$ composer require flownative/google-cloudstorage:~1.0@beta
+$ composer require flownative/google-cloudstorage
 ```
 
 ## Configuration
