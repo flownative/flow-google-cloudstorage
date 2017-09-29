@@ -39,30 +39,31 @@ class GcsCommandController extends CommandController
     public function connectCommand($bucket)
     {
         try {
-            $storageService = $this->storageFactory->create();
+            $storageClient = $this->storageFactory->create();
         } catch (\Exception $e) {
             $this->outputLine($e->getMessage());
             exit(1);
         }
 
-        $storageObject = new \Google_Service_Storage_StorageObject();
-        $storageObject->setName('Flownative.Google.CloudStorage.ConnectionTest.txt');
-        $storageObject->setSize(4);
+        $bucketName = $bucket;
+        $bucket = $storageClient->bucket($bucketName);
 
-        $postBody = [
-            'data' => 'test',
-            'uploadType' => 'media',
-            'mimeType' => 'text/plain'
-        ];
-
-        $this->outputLine('Writing test object into bucket (%s) ...', [$bucket]);
-        $storageService->objects->insert($bucket, $storageObject, $postBody);
+        $this->outputLine('Writing test object into bucket (%s) ...', [$bucketName]);
+        $bucket->upload(
+            'test',
+            [
+                'name' => 'Flownative.Google.CloudStorage.ConnectionTest.txt',
+                'metadata' => [
+                    'test' => true
+                ]
+            ]
+        );
 
         $this->outputLine('Retrieving test object from bucket ...');
-        $storageService->objects->get($bucket, 'Flownative.Google.CloudStorage.ConnectionTest.txt');
+        $this->outputLine('<em>' . $bucket->object('Flownative.Google.CloudStorage.ConnectionTest.txt')->downloadAsString() . '</em>');
 
         $this->outputLine('Deleting test object from bucket ...');
-        $storageService->objects->delete($bucket, 'Flownative.Google.CloudStorage.ConnectionTest.txt');
+        $bucket->object('Flownative.Google.CloudStorage.ConnectionTest.txt')->delete();
 
         $this->outputLine('OK');
     }

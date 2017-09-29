@@ -7,9 +7,11 @@ Flownative:
           credentials:
             clientEmail: '123456789012-abc123defg456hijklmnopqrstuvwxyz@developer.gserviceaccount.com'
 
-            # The private key (P12) can be specified in two ways: either by specifying the path and filename leading to
-            # the file containing the key, or as a string with the P12 key (base64 encoded). If both options are set,
-            # the "privateKeyP12" option wins.
-            privateKeyP12PathAndFilename: 'Data/Secrets/MyGoogleProject-abc123457def.p12'
-            privateKeyP12Base64Encoded: ''
+            # The private key (JSON) can be specified in two ways: either by specifying the path and filename leading to
+            # the file containing the key, or as a string with the JSON key data (base64 encoded). If both options are set,
+            # the "privateKeyJson" option wins.
+            privateKeyJsonPathAndFilename: 'Data/Secrets/MyGoogleProject-abc123457def.json'
+            privateKeyJsonBase64Encoded: ''
+
+      # How many resources may fail to be published until publishing a collection does not continue.
       continuesFailureLimit: 50

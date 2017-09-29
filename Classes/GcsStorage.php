@@ -11,6 +11,10 @@ namespace Flownative\Google\CloudStorage;
  * source code.
  */
 
+use Google\Cloud\Core\Exception\NotFoundException;
+use Google\Cloud\Storage\Bucket;
+use Google\Cloud\Storage\StorageClient;
+use GuzzleHttp\Psr7\StreamWrapper;
 use Neos\Flow\Annotations as Flow;
 use Neos\Flow\ResourceManagement\CollectionInterface;
 use Neos\Flow\ResourceManagement\PersistentResource;
@@ -20,6 +24,7 @@ use Neos\Flow\ResourceManagement\Storage\Exception;
 use Neos\Flow\ResourceManagement\Storage\StorageObject;
 use Neos\Flow\ResourceManagement\Storage\WritableStorageInterface;
 use Neos\Flow\Utility\Environment;
+use Psr\Http\Message\StreamInterface;
 
 /**
  * A resource storage based on Google Cloud Storage
@@ -73,9 +78,14 @@ class GcsStorage implements WritableStorageInterface
     protected $storageFactory;
 
     /**
-     * @var \Google_Service_Storage
+     * @var StorageClient
      */
-    protected $storageService;
+    protected $storageClient;
+
+    /**
+     * @var Bucket
+     */
+    protected $currentBucket;
 
     /**
      * @Flow\Inject
@@ -117,7 +127,7 @@ class GcsStorage implements WritableStorageInterface
      */
     public function initializeObject()
     {
-        $this->storageService = $this->storageFactory->create();
+        $this->storageClient = $this->storageFactory->create();
     }
 
     /**
@@ -215,13 +225,12 @@ class GcsStorage implements WritableStorageInterface
         $resource->setSha1($sha1Hash);
         $resource->setMd5($md5Hash);
 
-        $storageObject = new \Google_Service_Storage_StorageObject();
-        $storageObject->setBucket($this->bucketName);
-        $storageObject->setName($this->keyPrefix . $sha1Hash);
-        $storageObject->setSize($resource->getFileSize());
-
-        $this->storageService->objects->insert($this->bucketName, $storageObject,
-            ['data' => $content, 'uploadType' => 'media', 'mimeType' => $resource->getMediaType()]);
+        $this->getCurrentBucket()->upload($content, [
+            'name' => $this->keyPrefix . $sha1Hash,
+            'metadata' => [
+                'contentType' => $resource->getMediaType()
+            ]
+        ]);
 
         return $resource;
     }
@@ -264,18 +273,12 @@ class GcsStorage implements WritableStorageInterface
         $resource->setSha1($sha1Hash);
         $resource->setMd5($md5Hash);
 
-        $storageObject = new \Google_Service_Storage_StorageObject();
-        $storageObject->setBucket($this->bucketName);
-        $storageObject->setName($this->keyPrefix . $sha1Hash);
-        $storageObject->setSize($resource->getFileSize());
-
-        $postBody = [
-            'data' => file_get_contents($newSourcePathAndFilename),
-            'uploadType' => 'media',
-            'mimeType' => $resource->getMediaType()
-        ];
-
-        $this->storageService->objects->insert($this->bucketName, $storageObject, $postBody);
+        $this->getCurrentBucket()->upload(fopen($newSourcePathAndFilename, 'r'), [
+            'name' => $this->keyPrefix . $sha1Hash,
+            'metadata' => [
+                'contentType' => $resource->getMediaType()
+            ]
+        ]);
 
         return $resource;
     }
@@ -286,18 +289,14 @@ class GcsStorage implements WritableStorageInterface
      * @param PersistentResource $resource The PersistentResource to delete the storage data of
      * @return bool TRUE if removal was successful
      * @throws \Exception
-     * @throws \Google_Service_Exception
      * @api
      */
     public function deleteResource(PersistentResource $resource)
     {
         try {
-            $this->storageService->objects->delete($this->bucketName, $this->keyPrefix . $resource->getSha1());
-        } catch (\Google_Service_Exception $e) {
-            if ($e->getCode() === 404) {
-                return true;
-            }
-            throw $e;
+            $this->getCurrentBucket()->object($this->keyPrefix . $resource->getSha1())->delete();
+        } catch (NotFoundException $e) {
+            return true;
         }
 
         return true;
@@ -315,18 +314,13 @@ class GcsStorage implements WritableStorageInterface
     public function getStreamByResource(PersistentResource $resource)
     {
         try {
-            $storageObject = $this->storageService->objects->get($this->bucketName, $this->keyPrefix . $resource->getSha1(), ['alt' => 'media']);
-            $this->systemLogger->log('Create tmpfile for ' . $resource->getSha1());
-            $fh = tmpfile();
-            fwrite($fh, $storageObject);
-            rewind($fh);
-
-            return $fh;
+            $stream = $this->getCurrentBucket()->object($this->keyPrefix . $resource->getSha1())->downloadAsStream();
+            return StreamWrapper::getResource($stream);
         } catch (\Exception $e) {
             if ($e instanceof \Google_Service_Exception && $e->getCode() === 404) {
                 return false;
             }
-            $message = sprintf('Could not retrieve stream for resource %s (/%s/%s%s). %s', $resource->getFilename(), $this->bucketName, $this->keyPrefix . $resource->getSha1(), $e->getMessage());
+            $message = sprintf('Could not retrieve stream for resource %s (/%s/%s%s). %s', $resource->getFilename(), $this->bucketName, $this->keyPrefix, $resource->getSha1(), $e->getMessage());
             $this->systemLogger->log($message, \LOG_ERR);
             throw new Exception($message, 1446667860);
         }
@@ -344,15 +338,10 @@ class GcsStorage implements WritableStorageInterface
     public function getStreamByResourcePath($relativePath)
     {
         try {
-            $storageObject = $this->storageService->objects->get($this->bucketName, $this->keyPrefix . ltrim($relativePath, '/'), ['alt' => 'media']);
-            $this->systemLogger->log('Create tmpfile for ' . $relativePath);
-            $fh = tmpfile();
-            fwrite($fh, $storageObject);
-            rewind($fh);
-
-            return $fh;
+            $stream = $this->getCurrentBucket()->object($this->bucketName, $this->keyPrefix . ltrim($relativePath, '/'))->downloadAsStream();
+            return StreamWrapper::getResource($stream);
         } catch (\Exception $e) {
-            if ($e instanceof \Google_Service_Exception && $e->getCode() === 404) {
+            if ($e instanceof NotFoundException) {
                 return false;
             }
             $message = sprintf('Could not retrieve stream for resource (gs://%s/%s). %s', $this->bucketName, $this->keyPrefix . ltrim($relativePath, '/'), $e->getMessage());
@@ -391,20 +380,15 @@ class GcsStorage implements WritableStorageInterface
         $that = $this;
         $bucketName = $this->bucketName;
         $keyPrefix = $this->keyPrefix;
-        $storageService = $this->storageService;
+        $bucket = $this->getCurrentBucket();
 
         foreach ($this->resourceRepository->findByCollectionName($collection->getName()) as $resource) {
             /** @var \Neos\Flow\ResourceManagement\PersistentResource $resource */
             $object = new StorageObject();
             $object->setFilename($resource->getFilename());
             $object->setSha1($resource->getSha1());
-            $object->setStream(function () use ($that, $bucketName, $keyPrefix, $storageService, $resource) {
-                $storageObject = $storageService->objects->get($bucketName, $keyPrefix . $resource->getSha1(), ['alt' => 'media']);
-                $fh = fopen('php://temp', 'w+');
-                fwrite($fh, $storageObject);
-                rewind($fh);
-
-                return $fh;
+            $object->setStream(function () use ($that, $bucketName, $keyPrefix, $bucket, $resource) {
+                return $bucket->object($keyPrefix . $resource->getSha1())->downloadAsStream();
             });
             $objects[] = $object;
         }
@@ -432,29 +416,30 @@ class GcsStorage implements WritableStorageInterface
         $resource->setSha1($sha1Hash);
         $resource->setMd5($md5Hash);
 
-        try {
-            $this->storageService->objects->get($this->bucketName, $this->keyPrefix . $sha1Hash);
-            $alreadyExists = true;
-        } catch (\Google_Service_Exception $e) {
-            if ($e->getCode() === 404) {
-                $alreadyExists = false;
-            } else {
-                throw $e;
-            }
-        }
-
-        if (!$alreadyExists) {
-            $storageObject = new \Google_Service_Storage_StorageObject();
-            $storageObject->setBucket($this->bucketName);
-            $storageObject->setName($this->keyPrefix . $sha1Hash);
-            $storageObject->setSize($resource->getFileSize());
-
-            $this->storageService->objects->insert($this->bucketName, $storageObject, ['data' => file_get_contents($temporaryPathAndFilename), 'uploadType' => 'media', 'mimeType' => $resource->getMediaType()]);
+        $bucket = $this->getCurrentBucket();
+        if (!$bucket->object($this->keyPrefix . $sha1Hash)->exists()) {
+            $bucket->upload(fopen($temporaryPathAndFilename, 'r'), [
+                'name' => $this->keyPrefix . $sha1Hash,
+                'metadata' => [
+                    'contentType' => $resource->getMediaType()
+                ]
+            ]);
             $this->systemLogger->log(sprintf('Successfully imported resource as object "%s" into bucket "%s" with MD5 hash "%s"', $sha1Hash, $this->bucketName, $resource->getMd5() ?: 'unknown'), LOG_INFO);
         } else {
             $this->systemLogger->log(sprintf('Did not import resource as object "%s" into bucket "%s" because that object already existed.', $sha1Hash, $this->bucketName), LOG_INFO);
         }
 
         return $resource;
+    }
+
+    /**
+     * @return Bucket
+     */
+    protected function getCurrentBucket()
+    {
+        if ($this->currentBucket === null) {
+            $this->currentBucket = $this->storageClient->bucket($this->bucketName);
+        }
+        return $this->currentBucket;
     }
 }
