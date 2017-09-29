@@ -48,7 +48,7 @@ class StorageFactory
 
         if (!empty($this->credentialProfiles[$credentialsProfileName]['credentials']['privateKeyJsonBase64Encoded'])) {
             $googleCloud = new ServiceBuilder([
-                'keyFile' => json_decode(base64_decode($this->credentialProfiles[$credentialsProfileName]['credentials']['privateKeyJsonBase64Encoded']))
+                'keyFile' => json_decode(base64_decode($this->credentialProfiles[$credentialsProfileName]['credentials']['privateKeyJsonBase64Encoded']), true)
             ]);
         } else {
             if (substr($this->credentialProfiles[$credentialsProfileName]['credentials']['privateKeyJsonPathAndFilename'], 0, 1) !== '/') {
