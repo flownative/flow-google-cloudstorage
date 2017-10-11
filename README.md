@@ -3,13 +3,11 @@
 
 [packagist]: https://img.shields.io/packagist/v/flownative/google-cloudstorage.svg
 
-# Google Cloud Storage Adaptor for Neos 2.x and Flow 3.x
+# Google Cloud Storage Adaptor for Neos 2.x/3.x and Flow 3.x/4.x
 
 This [Flow](https://flow.neos.io) package allows you to store assets (resources) in [Google Cloud Storage](https://cloud.google.com/storage/)
 and publish resources to GCS. Because [Neos CMS](https://www.neos.io) is using Flow's resource management under the hood,
 this adaptor also works nicely for all kinds of assets in Neos.
-
-NOTE: This package is in beta stage. It works fine for some, but there is little real-world experience with it yet.
 
 ## Key Features
 

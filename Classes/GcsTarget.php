@@ -20,6 +20,7 @@ use TYPO3\Flow\Annotations as Flow;
 use TYPO3\Flow\Log\SystemLoggerInterface;
 use TYPO3\Flow\Resource\CollectionInterface;
 use TYPO3\Flow\Resource\Exception;
+use TYPO3\Flow\Resource\Publishing\MessageCollector;
 use TYPO3\Flow\Resource\Resource;
 use TYPO3\Flow\Resource\ResourceManager;
 use TYPO3\Flow\Resource\ResourceMetaDataInterface;
@@ -82,6 +83,12 @@ class GcsTarget implements TargetInterface
      * @var ResourceManager
      */
     protected $resourceManager;
+
+    /**
+     * @Flow\Inject
+     * @var MessageCollector
+     */
+    protected $messageCollector;
 
     /**
      * @Flow\Inject
@@ -172,7 +179,6 @@ class GcsTarget implements TargetInterface
      * @param CollectionInterface $collection The collection to publish
      * @throws Exception
      * @throws \Exception
-     * @throws \Google_Service_Exception
      */
     public function publishCollection(CollectionInterface $collection)
     {
@@ -212,7 +218,13 @@ class GcsTarget implements TargetInterface
                         'cacheControl' => 'public, max-age=1209600',
                     ]);
                 } catch (GoogleException $e) {
-                    throw new Exception(sprintf('Could not copy resource with SHA1 hash %s of collection %s from bucket %s to %s: %s', $object->getSha1(), $collection->getName(), $storageBucketName, $this->bucketName, $e->getMessage()), 1446721418);
+                    $googleError = json_decode($e->getMessage());
+                    if ($googleError instanceof \stdClass && isset($googleError->error->message)) {
+                        $this->messageCollector->append(sprintf('Could not copy resource with SHA1 hash %s of collection %s from bucket %s to %s: %s', $object->getSha1(), $collection->getName(), $storageBucketName, $this->bucketName, $googleError->error->message));
+                    } else {
+                        $this->messageCollector->append(sprintf('Could not copy resource with SHA1 hash %s of collection %s from bucket %s to %s: %s', $object->getSha1(), $collection->getName(), $storageBucketName, $this->bucketName, $e->getMessage()));
+                    }
+                    continue;
                 }
                 $this->systemLogger->log(sprintf('Successfully copied resource as object "%s" (MD5: %s) from bucket "%s" to bucket "%s"', $targetObjectName, $object->getMd5() ?: 'unknown', $storageBucketName, $this->bucketName), LOG_DEBUG);
                 unset($obsoleteObjects[$this->getRelativePublicationPathAndFilename($object)]);
@@ -241,6 +253,7 @@ class GcsTarget implements TargetInterface
      */
     public function getPublicStaticResourceUri($relativePathAndFilename)
     {
+        $relativePathAndFilename = $this->encodeRelativePathAndFilenameForUri($relativePathAndFilename);
         return 'https://storage.googleapis.com/' . $this->bucketName . '/'. $this->keyPrefix . $relativePathAndFilename;
     }
 
@@ -271,14 +284,21 @@ class GcsTarget implements TargetInterface
                 ]);
 
             } catch (GoogleException $e) {
-                throw new Exception(sprintf('Could not copy resource with SHA1 hash %s of collection %s from bucket %s to %s: %s', $resource->getSha1(), $collection->getName(), $storage->getBucketName(), $this->bucketName, $e->getMessage()), 1446721791);
+                $googleError = json_decode($e->getMessage());
+                if ($googleError instanceof \stdClass && isset($googleError->error->message)) {
+                    $this->messageCollector->append(sprintf('Could not copy resource with SHA1 hash %s of collection %s from bucket %s to %s: %s', $resource->getSha1(), $collection->getName(), $storage->getBucketName(), $this->bucketName, $googleError->error->message), LOG_ERR, 1446721791);
+                } else {
+                    $this->messageCollector->append(sprintf('Could not copy resource with SHA1 hash %s of collection %s from bucket %s to %s: %s', $resource->getSha1(), $collection->getName(), $storage->getBucketName(), $this->bucketName, $e->getMessage()), LOG_ERR, 1446721791);
+                }
+                return;
             }
 
             $this->systemLogger->log(sprintf('Successfully published resource as object "%s" (MD5: %s) by copying from bucket "%s" to bucket "%s"', $targetObjectName, $resource->getMd5() ?: 'unknown', $storage->getBucketName(), $this->bucketName), LOG_DEBUG);
         } else {
             $sourceStream = $resource->getStream();
             if ($sourceStream === false) {
-                throw new Exception(sprintf('Could not publish resource with SHA1 hash %s of collection %s because there seems to be no corresponding data in the storage.', $resource->getSha1(), $collection->getName()), 1446721810);
+                $this->messageCollector->append(sprintf('Could not publish resource with SHA1 hash %s of collection %s because there seems to be no corresponding data in the storage.', $resource->getSha1(), $collection->getName()), LOG_ERR, 1446721810);
+                return;
             }
             $this->publishFile($sourceStream, $this->getRelativePublicationPathAndFilename($resource), $resource);
         }
@@ -288,8 +308,6 @@ class GcsTarget implements TargetInterface
      * Unpublishes the given persistent resource
      *
      * @param \TYPO3\Flow\Resource\Resource $resource The resource to unpublish
-     * @throws \Exception
-     * @throws \Google_Service_Exception
      */
     public function unpublishResource(Resource $resource)
     {
@@ -310,7 +328,7 @@ class GcsTarget implements TargetInterface
      */
     public function getPublicPersistentResourceUri(Resource $resource)
     {
-        $relativePathAndFilename = $this->getRelativePublicationPathAndFilename($resource);
+        $relativePathAndFilename = $this->encodeRelativePathAndFilenameForUri($this->getRelativePublicationPathAndFilename($resource));
         if ($this->baseUri != '') {
             return $this->baseUri . $relativePathAndFilename;
         } else {
@@ -339,11 +357,11 @@ class GcsTarget implements TargetInterface
 
             $this->systemLogger->log(sprintf('Successfully published resource as object "%s" in bucket "%s" with MD5 hash "%s"', $objectName, $this->bucketName, $metaData->getMd5() ?: 'unknown'), LOG_DEBUG);
         } catch (\Exception $e) {
-            $this->systemLogger->log(sprintf('Failed publishing resource as object "%s" in bucket "%s" with MD5 hash "%s": %s', $objectName, $this->bucketName, $metaData->getMd5() ?: 'unknown', $e->getMessage()), LOG_DEBUG);
+            $this->messageCollector->append(sprintf('Failed publishing resource as object "%s" in bucket "%s" with MD5 hash "%s": %s', $objectName, $this->bucketName, $metaData->getMd5() ?: 'unknown', $e->getMessage()), LOG_WARNING, 1506847965352);
             if (is_resource($sourceStream)) {
                 fclose($sourceStream);
             }
-            throw $e;
+            return;
         }
     }
 
@@ -362,7 +380,7 @@ class GcsTarget implements TargetInterface
         } else {
             $pathAndFilename = $object->getSha1() . '/' . $object->getFilename();
         }
-        return $this->encodeRelativePathAndFilenameForUri($pathAndFilename);
+        return $pathAndFilename;
     }
 
     /**
