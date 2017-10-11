@@ -316,10 +316,9 @@ class GcsStorage implements WritableStorageInterface
         try {
             $stream = $this->getCurrentBucket()->object($this->keyPrefix . $resource->getSha1())->downloadAsStream();
             return StreamWrapper::getResource($stream);
+        } catch (NotFoundException $e) {
+            return false;
         } catch (\Exception $e) {
-            if ($e instanceof \Google_Service_Exception && $e->getCode() === 404) {
-                return false;
-            }
             $message = sprintf('Could not retrieve stream for resource %s (/%s/%s%s). %s', $resource->getFilename(), $this->bucketName, $this->keyPrefix, $resource->getSha1(), $e->getMessage());
             $this->systemLogger->log($message, \LOG_ERR);
             throw new Exception($message, 1446667860);
