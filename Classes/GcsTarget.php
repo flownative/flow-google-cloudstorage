@@ -147,6 +147,7 @@ class GcsTarget implements TargetInterface
      * Initialize the Google Cloud Storage instance
      *
      * @return void
+     * @throws \Flownative\Google\CloudStorage\Exception
      */
     public function initializeObject()
     {
@@ -179,6 +180,7 @@ class GcsTarget implements TargetInterface
      * @param CollectionInterface $collection The collection to publish
      * @throws Exception
      * @throws \Exception
+     * @throws \TYPO3\Flow\Exception
      */
     public function publishCollection(CollectionInterface $collection)
     {
@@ -199,36 +201,7 @@ class GcsTarget implements TargetInterface
 
         $storage = $collection->getStorage();
         if ($storage instanceof GcsStorage) {
-            $storageBucketName = $storage->getBucketName();
-            if ($storageBucketName === $this->bucketName && $storage->getKeyPrefix() === $this->keyPrefix) {
-                throw new Exception(sprintf('Could not publish collection %s because the source and target bucket is the same, with identical key prefixes. Either choose a different bucket or at least key prefix for the target.', $collection->getName()), 1446721125);
-            }
-
-            $storageBucket = $this->storageClient->bucket($storageBucketName);
-
-            foreach ($collection->getObjects() as $object) {
-                /** @var \TYPO3\Flow\Resource\Storage\Object $object */
-                $targetObjectName = $this->keyPrefix . $this->getRelativePublicationPathAndFilename($object);
-
-                try {
-                    $storageBucket->object($storage->getKeyPrefix() . $object->getSha1())->copy($targetBucket, [
-                        'name' => $targetObjectName,
-                        'predefinedAcl' => 'publicRead',
-                        'contentType' => $object->getMediaType(),
-                        'cacheControl' => 'public, max-age=1209600',
-                    ]);
-                } catch (GoogleException $e) {
-                    $googleError = json_decode($e->getMessage());
-                    if ($googleError instanceof \stdClass && isset($googleError->error->message)) {
-                        $this->messageCollector->append(sprintf('Could not copy resource with SHA1 hash %s of collection %s from bucket %s to %s: %s', $object->getSha1(), $collection->getName(), $storageBucketName, $this->bucketName, $googleError->error->message));
-                    } else {
-                        $this->messageCollector->append(sprintf('Could not copy resource with SHA1 hash %s of collection %s from bucket %s to %s: %s', $object->getSha1(), $collection->getName(), $storageBucketName, $this->bucketName, $e->getMessage()));
-                    }
-                    continue;
-                }
-                $this->systemLogger->log(sprintf('Successfully copied resource as object "%s" (MD5: %s) from bucket "%s" to bucket "%s"', $targetObjectName, $object->getMd5() ?: 'unknown', $storageBucketName, $this->bucketName), LOG_DEBUG);
-                unset($obsoleteObjects[$this->getRelativePublicationPathAndFilename($object)]);
-            }
+            $this->publishCollectionFromGoogleCloudStorage($collection, $storage, $this->existingObjectsInfo, $obsoleteObjects, $targetBucket);
         } else {
             foreach ($collection->getObjects() as $object) {
                 /** @var \TYPO3\Flow\Resource\Storage\Object $object */
@@ -237,12 +210,70 @@ class GcsTarget implements TargetInterface
             }
         }
 
+        $this->systemLogger->log(sprintf('Removing %s obsolete objects from target bucket "%s".', count($obsoleteObjects), $this->bucketName), LOG_INFO);
         foreach (array_keys($obsoleteObjects) as $relativePathAndFilename) {
             try {
                 $targetBucket->object($this->keyPrefix . $relativePathAndFilename)->delete();
             } catch (NotFoundException $e) {
             }
         }
+    }
+
+    /**
+     * @param CollectionInterface $collection
+     * @param GcsStorage $storage
+     * @param array $existingObjects
+     * @param array $obsoleteObjects
+     * @param Bucket $targetBucket
+     * @throws Exception
+     * @throws \TYPO3\Flow\Exception
+     */
+    private function publishCollectionFromGoogleCloudStorage(CollectionInterface $collection, GcsStorage $storage, array $existingObjects, array &$obsoleteObjects, Bucket $targetBucket)
+    {
+        $storageBucketName = $storage->getBucketName();
+        if ($storageBucketName === $this->bucketName && $storage->getKeyPrefix() === $this->keyPrefix) {
+            throw new Exception(sprintf('Could not publish collection %s because the source and target bucket is the same, with identical key prefixes. Either choose a different bucket or at least key prefix for the target.', $collection->getName()), 1446721125);
+        }
+
+        $storageBucket = $this->storageClient->bucket($storageBucketName);
+        $iteration = 0;
+
+        $this->systemLogger->log(sprintf('Found %s existing objects in target bucket "%s".', count($existingObjects), $this->bucketName), LOG_INFO);
+
+        foreach ($collection->getObjects() as $object) {
+            /** @var \TYPO3\Flow\Resource\Storage\Object $object */
+            $targetObjectName = $this->keyPrefix . $this->getRelativePublicationPathAndFilename($object);
+            if (isset($existingObjects[$targetObjectName])) {
+                $this->systemLogger->log(sprintf('Skipping object "%s" because it already exists in bucket "%s"', $targetObjectName, $this->bucketName), LOG_DEBUG);
+                unset($obsoleteObjects[$targetObjectName]);
+                continue;
+            }
+
+            try {
+                $this->systemLogger->log(sprintf('Copy object "%s" to bucket "%s"', $targetObjectName, $this->bucketName), LOG_DEBUG);
+                $options = [
+                    'name' => $targetObjectName,
+                    'predefinedAcl' => 'publicRead',
+                    'contentType' => $object->getMediaType(),
+                    'cacheControl' => 'public, max-age=1209600',
+                ];
+
+                $storageBucket->object($storage->getKeyPrefix() . $object->getSha1())->copy($targetBucket, $options);
+            } catch (GoogleException $e) {
+                $googleError = json_decode($e->getMessage());
+                if ($googleError instanceof \stdClass && isset($googleError->error->message)) {
+                    $this->messageCollector->append(sprintf('Could not copy resource with SHA1 hash %s of collection %s from bucket %s to %s: %s', $object->getSha1(), $collection->getName(), $storageBucketName, $this->bucketName, $googleError->error->message));
+                } else {
+                    $this->messageCollector->append(sprintf('Could not copy resource with SHA1 hash %s of collection %s from bucket %s to %s: %s', $object->getSha1(), $collection->getName(), $storageBucketName, $this->bucketName, $e->getMessage()));
+                }
+                continue;
+            }
+            $this->systemLogger->log(sprintf('Successfully copied resource as object "%s" (MD5: %s) from bucket "%s" to bucket "%s"', $targetObjectName, $object->getMd5() ?: 'unknown', $storageBucketName, $this->bucketName), LOG_DEBUG);
+            unset($targetObjectName);
+            $iteration ++;
+        }
+
+        $this->systemLogger->log(sprintf('Published %s new objects to target bucket "%s".', $iteration, $this->bucketName), LOG_INFO);
     }
 
     /**
@@ -264,6 +295,8 @@ class GcsTarget implements TargetInterface
      * @param CollectionInterface $collection The collection the given resource belongs to
      * @return void
      * @throws Exception
+     * @throws \Exception
+     * @throws \TYPO3\Flow\Exception
      */
     public function publishResource(Resource $resource, CollectionInterface $collection)
     {
@@ -324,7 +357,6 @@ class GcsTarget implements TargetInterface
      *
      * @param \TYPO3\Flow\Resource\Resource $resource Resource object or the resource hash of the resource
      * @return string The URI
-     * @throws Exception
      */
     public function getPublicPersistentResourceUri(Resource $resource)
     {
