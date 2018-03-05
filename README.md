@@ -13,6 +13,7 @@ this adaptor also works nicely for all kinds of assets in Neos.
 
 - store all assets or only a specific collection in a private GCS bucket
 - publish assets to a private or public GCS bucket
+- supports GZIP compression for selected media types
 - command line interface for basic tasks like connection check or emptying an GCS bucket
 
 Using this connector, you can run a Neos website which does not store any asset (images, PDFs etc.) on your local webserver.
@@ -188,6 +189,44 @@ Clear caches and you're done.
 ```bash
 $ ./flow flow:cache:flush
 ```
+
+## GZIP Compression
+
+Google Cloud Storage supports GZIP compression for delivering files to the user, however, these files need to be
+compressed outside Google Cloud Storage and then uploaded as GZIP compressed data. This plugin supports transcoding
+resources on the fly, while they are being published. Data in the Google Cloud Storage *storage* is always
+stored uncompressed, as-is. Files which is of one of the media types configured for GZIP compression are automatically
+converted to GZIP while they are being published to the Google Cloud Storage *target*.
+
+You can configure the compression level and the media types which should be compressed as such:
+
+```yaml
+Neos:
+  Flow:
+    resource:
+      targets:
+        googlePersistentResourcesTarget:
+          target: 'Flownative\Google\CloudStorage\GcsTarget'
+          targetOptions:
+            gzipCompressionLevel: 9
+            gzipCompressionMediaTypes:
+            - 'text/plain'
+            - 'text/css'
+            - 'text/xml'
+            - 'text/mathml'
+            - 'text/javascript'
+            - 'application/x-javascript'
+            - 'application/xml'
+            - 'application/rss+xml'
+            - 'application/atom+xml'
+            - 'application/javascript'
+            - 'application/json'
+            - 'application/x-font-woff'
+            - 'image/svg+xml'
+```
+
+Note that adding media types for data which is already compressed – for example images or movies – will likely rather
+increase the data size and thus should be avoided.
 
 ## Full Example Configuration for GCS
 

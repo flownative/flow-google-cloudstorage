@@ -25,6 +25,7 @@ use Neos\Flow\ResourceManagement\Publishing\MessageCollector;
 use Neos\Flow\ResourceManagement\ResourceManager;
 use Neos\Flow\ResourceManagement\ResourceMetaDataInterface;
 use Neos\Flow\ResourceManagement\Target\TargetInterface;
+use Neos\Flow\Utility\Environment;
 
 /**
  * A resource publishing target based on Amazon S3
@@ -66,6 +67,30 @@ class GcsTarget implements TargetInterface
     protected $baseUri;
 
     /**
+     * @var int
+     */
+    protected $gzipCompressionLevel = 9;
+
+    /**
+     * @var string[]
+     */
+    protected $gzipCompressionMediaTypes = [
+      'text/plain',
+      'text/css',
+      'text/xml',
+      'text/mathml',
+      'text/javascript',
+      'application/x-javascript',
+      'application/xml',
+      'application/rss+xml',
+      'application/atom+xml',
+      'application/javascript',
+      'application/json',
+      'application/x-font-woff',
+      'image/svg+xml'
+    ];
+
+    /**
      * Internal cache for known storages, indexed by storage name
      *
      * @var array<\Neos\Flow\ResourceManagement\Storage\StorageInterface>
@@ -102,6 +127,12 @@ class GcsTarget implements TargetInterface
     protected $storageClient;
 
     /**
+     * @Flow\Inject
+     * @var Environment
+     */
+    protected $environment;
+
+    /**
      * @var Bucket
      */
     protected $currentBucket;
@@ -134,6 +165,20 @@ class GcsTarget implements TargetInterface
                 break;
                 case 'baseUri':
                     $this->baseUri = $value;
+                break;
+                case 'gzipCompressionLevel':
+                    $this->gzipCompressionLevel = intval($value);
+                break;
+                case 'gzipCompressionMediaTypes':
+                    if (!is_array($value)) {
+                        throw new Exception(sprintf('The option "%s" which was specified in the configuration of the "%s" resource GcsTarget is not a valid array. Please check your settings.', $key, $name), 1520267221740);
+                    }
+                    foreach ($value as $mediaType) {
+                        if (!is_string($mediaType)) {
+                            throw new Exception(sprintf('The option "%s" which was specified in the configuration of the "%s" resource GcsTarget is not a valid array of strings. Please check your settings.', $key, $name), 1520267338243);
+                        }
+                    }
+                    $this->gzipCompressionMediaTypes = $value;
                 break;
                 default:
                     if ($value !== null) {
@@ -249,26 +294,35 @@ class GcsTarget implements TargetInterface
                 continue;
             }
 
-            try {
-                $this->systemLogger->log(sprintf('Copy object "%s" to bucket "%s"', $targetObjectName, $this->bucketName), LOG_DEBUG);
-                $options = [
-                    'name' => $targetObjectName,
-                    'predefinedAcl' => 'publicRead',
-                    'contentType' => $object->getMediaType(),
-                    'cacheControl' => 'public, max-age=1209600',
-                ];
-
-                $storageBucket->object($storage->getKeyPrefix() . $object->getSha1())->copy($targetBucket, $options);
-            } catch (GoogleException $e) {
-                $googleError = json_decode($e->getMessage());
-                if ($googleError instanceof \stdClass && isset($googleError->error->message)) {
-                    $this->messageCollector->append(sprintf('Could not copy resource with SHA1 hash %s of collection %s from bucket %s to %s: %s', $object->getSha1(), $collection->getName(), $storageBucketName, $this->bucketName, $googleError->error->message));
-                } else {
-                    $this->messageCollector->append(sprintf('Could not copy resource with SHA1 hash %s of collection %s from bucket %s to %s: %s', $object->getSha1(), $collection->getName(), $storageBucketName, $this->bucketName, $e->getMessage()));
+            if (in_array($object->getMediaType(), $this->gzipCompressionMediaTypes)) {
+                try {
+                    $this->publishFile($object->getStream(), $this->getRelativePublicationPathAndFilename($object), $object);
+                } catch (\Exception $e) {
+                    $this->messageCollector->append(sprintf('Could not publish resource with SHA1 hash %s of collection %s from bucket %s to %s: %s', $object->getSha1(), $collection->getName(), $storageBucketName, $this->bucketName, $e->getMessage()));
                 }
-                continue;
+                $this->systemLogger->log(sprintf('Successfully copied resource as object "%s" (MD5: %s) from bucket "%s" to bucket "%s" (with GZIP compression)', $targetObjectName, $object->getMd5() ?: 'unknown', $storageBucketName, $this->bucketName), LOG_DEBUG);
+            } else {
+                try {
+                    $this->systemLogger->log(sprintf('Copy object "%s" to bucket "%s"', $targetObjectName, $this->bucketName), LOG_DEBUG);
+                    $options = [
+                        'name' => $targetObjectName,
+                        'predefinedAcl' => 'publicRead',
+                        'contentType' => $object->getMediaType(),
+                        'cacheControl' => 'public, max-age=1209600',
+                    ];
+
+                    $storageBucket->object($storage->getKeyPrefix() . $object->getSha1())->copy($targetBucket, $options);
+                } catch (GoogleException $e) {
+                    $googleError = json_decode($e->getMessage());
+                    if ($googleError instanceof \stdClass && isset($googleError->error->message)) {
+                        $this->messageCollector->append(sprintf('Could not copy resource with SHA1 hash %s of collection %s from bucket %s to %s: %s', $object->getSha1(), $collection->getName(), $storageBucketName, $this->bucketName, $googleError->error->message));
+                    } else {
+                        $this->messageCollector->append(sprintf('Could not copy resource with SHA1 hash %s of collection %s from bucket %s to %s: %s', $object->getSha1(), $collection->getName(), $storageBucketName, $this->bucketName, $e->getMessage()));
+                    }
+                    continue;
+                }
+                $this->systemLogger->log(sprintf('Successfully copied resource as object "%s" (MD5: %s) from bucket "%s" to bucket "%s"', $targetObjectName, $object->getMd5() ?: 'unknown', $storageBucketName, $this->bucketName), LOG_DEBUG);
             }
-            $this->systemLogger->log(sprintf('Successfully copied resource as object "%s" (MD5: %s) from bucket "%s" to bucket "%s"', $targetObjectName, $object->getMd5() ?: 'unknown', $storageBucketName, $this->bucketName), LOG_DEBUG);
             unset($targetObjectName);
             $iteration ++;
         }
@@ -301,7 +355,7 @@ class GcsTarget implements TargetInterface
     public function publishResource(PersistentResource $resource, CollectionInterface $collection)
     {
         $storage = $collection->getStorage();
-        if ($storage instanceof GcsStorage) {
+        if ($storage instanceof GcsStorage && !in_array($resource->getMediaType(), $this->gzipCompressionMediaTypes)) {
             if ($storage->getBucketName() === $this->bucketName && $storage->getKeyPrefix() === $this->keyPrefix) {
                 throw new Exception(sprintf('Could not publish resource with SHA1 hash %s of collection %s because the source and target bucket is the same, with identical key prefixes. Either choose a different bucket or at least key prefix for the target.', $resource->getSha1(), $collection->getName()), 1446721574);
             }
@@ -380,21 +434,43 @@ class GcsTarget implements TargetInterface
     protected function publishFile($sourceStream, $relativeTargetPathAndFilename, ResourceMetaDataInterface $metaData)
     {
         $objectName = $this->keyPrefix . $relativeTargetPathAndFilename;
-        try {
-            $this->getCurrentBucket()->upload($sourceStream, [
-                'name' => $objectName,
-                'predefinedAcl' => 'publicRead',
-                'contentType' => $metaData->getMediaType(),
-                'cacheControl' => 'public, max-age=1209600',
-            ]);
+        $uploadParameters =  [
+            'name' => $objectName,
+            'predefinedAcl' => 'publicRead',
+            'contentType' => $metaData->getMediaType(),
+            'cacheControl' => 'public, max-age=1209600'
+        ];
 
+        if (in_array($metaData->getMediaType(), $this->gzipCompressionMediaTypes)) {
+            try {
+                $temporaryTargetPathAndFilename = $this->environment->getPathToTemporaryDirectory() . uniqid('Flownative_Google_CloudStorage_');
+                $temporaryTargetStream = gzopen($temporaryTargetPathAndFilename, 'wb' . $this->gzipCompressionLevel);
+                while(!feof($sourceStream)) {
+                    gzwrite($temporaryTargetStream, fread($sourceStream, 524288));
+                }
+                fclose($sourceStream);
+                fclose($temporaryTargetStream);
+
+                $sourceStream = fopen($temporaryTargetPathAndFilename, 'rb');
+                $uploadParameters['metadata']['contentEncoding'] = 'gzip';
+
+                $this->systemLogger->log(sprintf('Converted resource data of object "%s" in bucket "%s" with MD5 hash "%s" to GZIP with level %s.', $objectName, $this->bucketName, $metaData->getMd5() ?: 'unknown', $this->gzipCompressionLevel), LOG_DEBUG);
+            } catch (\Exception $e) {
+                $this->messageCollector->append(sprintf('Failed publishing resource as object "%s" in bucket "%s" with MD5 hash "%s": %s', $objectName, $this->bucketName, $metaData->getMd5() ?: 'unknown', $e->getMessage()), LOG_WARNING, 1520257344878);
+            }
+        }
+        try {
+            $this->getCurrentBucket()->upload($sourceStream, $uploadParameters);
             $this->systemLogger->log(sprintf('Successfully published resource as object "%s" in bucket "%s" with MD5 hash "%s"', $objectName, $this->bucketName, $metaData->getMd5() ?: 'unknown'), LOG_DEBUG);
         } catch (\Exception $e) {
             $this->messageCollector->append(sprintf('Failed publishing resource as object "%s" in bucket "%s" with MD5 hash "%s": %s', $objectName, $this->bucketName, $metaData->getMd5() ?: 'unknown', $e->getMessage()), LOG_WARNING, 1506847965352);
+        } finally {
             if (is_resource($sourceStream)) {
                 fclose($sourceStream);
             }
-            return;
+            if (isset($temporaryTargetPathAndFilename) && file_exists($temporaryTargetPathAndFilename)) {
+                unlink ($temporaryTargetPathAndFilename);
+            }
         }
     }
 
