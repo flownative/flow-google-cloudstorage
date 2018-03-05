@@ -24,7 +24,6 @@ use Neos\Flow\ResourceManagement\Storage\Exception;
 use Neos\Flow\ResourceManagement\Storage\StorageObject;
 use Neos\Flow\ResourceManagement\Storage\WritableStorageInterface;
 use Neos\Flow\Utility\Environment;
-use Psr\Http\Message\StreamInterface;
 
 /**
  * A resource storage based on Google Cloud Storage
@@ -387,7 +386,8 @@ class GcsStorage implements WritableStorageInterface
             $object->setFilename($resource->getFilename());
             $object->setSha1($resource->getSha1());
             $object->setStream(function () use ($that, $bucketName, $keyPrefix, $bucket, $resource) {
-                return $bucket->object($keyPrefix . $resource->getSha1())->downloadAsStream();
+                $stream = $bucket->object($keyPrefix . $resource->getSha1())->downloadAsStream();
+                return StreamWrapper::getResource($stream);
             });
             $objects[] = $object;
         }
