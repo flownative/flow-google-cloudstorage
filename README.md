@@ -1,7 +1,6 @@
 [![MIT license](http://img.shields.io/badge/license-MIT-brightgreen.svg)](http://opensource.org/licenses/MIT)
-![Packagist][packagist]
-
-[packagist]: https://img.shields.io/packagist/v/flownative/google-cloudstorage.svg
+[![Packagist](https://img.shields.io/packagist/v/flownative/google-cloudstorage.svg)](https://packagist.org/packages/flownative/google-cloudstorage)
+[![Maintenance level: Love](https://img.shields.io/badge/maintenance-%E2%99%A1%E2%99%A1%E2%99%A1-ff69b4.svg)](https://www.flownative.com/en/products/open-source.html)
 
 # Google Cloud Storage Adaptor for Neos 2.x/3.x and Flow 3.x/4.x
 
