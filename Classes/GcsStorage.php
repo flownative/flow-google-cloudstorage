@@ -123,6 +123,7 @@ class GcsStorage implements WritableStorageInterface
      * Initialize the Google Cloud Storage instance
      *
      * @return void
+     * @throws \Flownative\Google\CloudStorage\Exception
      */
     public function initializeObject()
     {
@@ -190,7 +191,11 @@ class GcsStorage implements WritableStorageInterface
             }
         }
 
-        $resource = $this->importTemporaryFile($temporaryTargetPathAndFilename, $collectionName);
+        try {
+            $resource = $this->importTemporaryFile($temporaryTargetPathAndFilename, $collectionName);
+        } catch (\Exception $e) {
+            throw new Exception(sprintf('Could not import the temporary file from "%s" to to collection "%s": %s', $temporaryTargetPathAndFilename, $collectionName, $e->getMessage()), 1538034191);
+        }
         unlink($temporaryTargetPathAndFilename);
 
         return $resource;
@@ -208,7 +213,6 @@ class GcsStorage implements WritableStorageInterface
      * @param string $content The actual content to import
      * @param string $collectionName Name of the collection the new PersistentResource belongs to
      * @return PersistentResource A resource object representing the imported resource
-     * @throws Exception
      * @api
      */
     public function importResourceFromContent($content, $collectionName)
@@ -402,7 +406,6 @@ class GcsStorage implements WritableStorageInterface
      * @param string $collectionName Name of the collection to import into
      * @return PersistentResource The imported resource
      * @throws \Exception
-     * @throws \Google_Service_Exception
      */
     protected function importTemporaryFile($temporaryPathAndFilename, $collectionName)
     {
@@ -417,12 +420,21 @@ class GcsStorage implements WritableStorageInterface
 
         $bucket = $this->getCurrentBucket();
         if (!$bucket->object($this->keyPrefix . $sha1Hash)->exists()) {
-            $bucket->upload(fopen($temporaryPathAndFilename, 'r'), [
-                'name' => $this->keyPrefix . $sha1Hash,
-                'metadata' => [
-                    'contentType' => $resource->getMediaType()
-                ]
-            ]);
+            try {
+                $bucket->upload(fopen($temporaryPathAndFilename, 'r'), [
+                    'name' => $this->keyPrefix . $sha1Hash,
+                    'metadata' => [
+                        'contentType' => $resource->getMediaType()
+                    ]
+                ]);
+            } catch (\Exception $exception) {
+                if (!$bucket->exists()) {
+                    throw new \Exception(sprintf('Failed importing the temporary file into storage collection "%s" because the target bucket "%s" does not exist.', $collectionName, $bucket->name()));
+                } else {
+                    throw $exception;
+                }
+            }
+
             $this->systemLogger->log(sprintf('Successfully imported resource as object "%s" into bucket "%s" with MD5 hash "%s"', $sha1Hash, $this->bucketName, $resource->getMd5() ?: 'unknown'), LOG_INFO);
         } else {
             $this->systemLogger->log(sprintf('Did not import resource as object "%s" into bucket "%s" because that object already existed.', $sha1Hash, $this->bucketName), LOG_INFO);
