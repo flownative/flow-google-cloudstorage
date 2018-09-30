@@ -143,6 +143,11 @@ class GcsTarget implements TargetInterface
     protected $existingObjectsInfo;
 
     /**
+     * @var bool
+     */
+    protected $bucketIsPublic;
+
+    /**
      * Constructor
      *
      * @param string $name Name of this target instance, according to the resource settings
@@ -223,12 +228,19 @@ class GcsTarget implements TargetInterface
      * Publishes the whole collection to this target
      *
      * @param CollectionInterface $collection The collection to publish
-     * @throws Exception
      * @throws \Exception
      * @throws \Neos\Flow\Exception
      */
     public function publishCollection(CollectionInterface $collection)
     {
+        $storage = $collection->getStorage();
+        $targetBucket = $this->getCurrentBucket();
+
+        if ($storage instanceof GcsStorage && $storage->getBucketName() === $targetBucket->name()) {
+            $this->publishCollectionFromSameGoogleCloudStorage($storage);
+            return;
+        }
+
         if (!isset($this->existingObjectsInfo)) {
             $this->existingObjectsInfo = [];
             $parameters = [
@@ -242,11 +254,9 @@ class GcsTarget implements TargetInterface
         }
 
         $obsoleteObjects = $this->existingObjectsInfo;
-        $targetBucket = $this->getCurrentBucket();
 
-        $storage = $collection->getStorage();
         if ($storage instanceof GcsStorage) {
-            $this->publishCollectionFromGoogleCloudStorage($collection, $storage, $this->existingObjectsInfo, $obsoleteObjects, $targetBucket);
+            $this->publishCollectionFromDifferentGoogleCloudStorage($collection, $storage, $this->existingObjectsInfo, $obsoleteObjects, $targetBucket);
         } else {
             foreach ($collection->getObjects() as $object) {
                 /** @var \Neos\Flow\ResourceManagement\Storage\StorageObject $object */
@@ -265,21 +275,54 @@ class GcsTarget implements TargetInterface
     }
 
     /**
+     * @param GcsStorage $storage
+     */
+    private function publishCollectionFromSameGoogleCloudStorage(GcsStorage $storage)
+    {
+        $storageBucket = $this->storageClient->bucket($storage->getBucketName());
+        $this->enablePublicReadAccessForStorageBucket($storageBucket);
+    }
+
+    /**
+     * @param Bucket $storageBucket
+     */
+    private function enablePublicReadAccessForStorageBucket(Bucket $storageBucket) {
+        if ($this->bucketIsPublic === true) {
+            return;
+        }
+
+        $policy = $storageBucket->iam()->policy();
+        foreach ($policy['bindings'] as $binding) {
+            if ($binding['role'] === 'roles/storage.objectViewer') {
+                if (in_array('allUsers', $binding['members'])) {
+                    $this->systemLogger->log(sprintf('Bucket "%s" used as storage and target was already public, no need to change the policy.', $this->bucketName), LOG_INFO);
+                    $this->bucketIsPublic = true;
+                    return;
+                }
+            }
+        }
+
+        $policy['bindings'][] = [
+            'role' => 'roles/storage.objectViewer',
+            'members' => ['allUsers']
+        ];
+        $storageBucket->iam()->setPolicy($policy);
+        $this->bucketIsPublic = true;
+
+        $this->systemLogger->log(sprintf('Changed policy for bucket "%s" used as storage and target: enabled public read-access', $this->bucketName), LOG_INFO);
+    }
+
+    /**
      * @param CollectionInterface $collection
      * @param GcsStorage $storage
      * @param array $existingObjects
      * @param array $obsoleteObjects
      * @param Bucket $targetBucket
-     * @throws Exception
      * @throws \Neos\Flow\Exception
      */
-    private function publishCollectionFromGoogleCloudStorage(CollectionInterface $collection, GcsStorage $storage, array $existingObjects, array &$obsoleteObjects, Bucket $targetBucket)
+    private function publishCollectionFromDifferentGoogleCloudStorage(CollectionInterface $collection, GcsStorage $storage, array $existingObjects, array &$obsoleteObjects, Bucket $targetBucket)
     {
         $storageBucketName = $storage->getBucketName();
-        if ($storageBucketName === $this->bucketName && $storage->getKeyPrefix() === $this->keyPrefix) {
-            throw new Exception(sprintf('Could not publish collection %s because the source and target bucket is the same, with identical key prefixes. Either choose a different bucket or at least key prefix for the target.', $collection->getName()), 1446721125);
-        }
-
         $storageBucket = $this->storageClient->bucket($storageBucketName);
         $iteration = 0;
 
@@ -355,6 +398,14 @@ class GcsTarget implements TargetInterface
     public function publishResource(PersistentResource $resource, CollectionInterface $collection)
     {
         $storage = $collection->getStorage();
+        if ($storage instanceof GcsStorage && $storage->getBucketName() === $this->bucketName) {
+            $storageBucket = $this->storageClient->bucket($storage->getBucketName());
+            $this->enablePublicReadAccessForStorageBucket($storageBucket);
+
+            $storageBucket->object($storage->getKeyPrefix() . $resource->getSha1())->update(['contentType' => $resource->getMediaType()]);
+            return;
+        }
+
         if ($storage instanceof GcsStorage && !in_array($resource->getMediaType(), $this->gzipCompressionMediaTypes)) {
             if ($storage->getBucketName() === $this->bucketName && $storage->getKeyPrefix() === $this->keyPrefix) {
                 throw new Exception(sprintf('Could not publish resource with SHA1 hash %s of collection %s because the source and target bucket is the same, with identical key prefixes. Either choose a different bucket or at least key prefix for the target.', $resource->getSha1(), $collection->getName()), 1446721574);
@@ -399,6 +450,13 @@ class GcsTarget implements TargetInterface
      */
     public function unpublishResource(PersistentResource $resource)
     {
+        $collection = $this->resourceManager->getCollection($resource->getCollectionName());
+        $storage = $collection->getStorage();
+        if ($storage instanceof GcsStorage && $storage->getBucketName() === $this->bucketName) {
+            // Unpublish for same-bucket setups is a NOOP, because the storage object will already be deleted.
+            return;
+        }
+
         try {
             $objectName = $this->keyPrefix . $this->getRelativePublicationPathAndFilename($resource);
             $this->getCurrentBucket()->object($objectName)->delete();
