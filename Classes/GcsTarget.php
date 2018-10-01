@@ -237,7 +237,7 @@ class GcsTarget implements TargetInterface
         $targetBucket = $this->getCurrentBucket();
 
         if ($storage instanceof GcsStorage && $storage->getBucketName() === $targetBucket->name()) {
-            $this->publishCollectionFromSameGoogleCloudStorage($storage);
+            // Nothing to do: the storage bucket is (or should be) publicly accessible
             return;
         }
 
@@ -272,44 +272,6 @@ class GcsTarget implements TargetInterface
             } catch (NotFoundException $e) {
             }
         }
-    }
-
-    /**
-     * @param GcsStorage $storage
-     */
-    private function publishCollectionFromSameGoogleCloudStorage(GcsStorage $storage)
-    {
-        $storageBucket = $this->storageClient->bucket($storage->getBucketName());
-        $this->enablePublicReadAccessForStorageBucket($storageBucket);
-    }
-
-    /**
-     * @param Bucket $storageBucket
-     */
-    private function enablePublicReadAccessForStorageBucket(Bucket $storageBucket) {
-        if ($this->bucketIsPublic === true) {
-            return;
-        }
-
-        $policy = $storageBucket->iam()->policy();
-        foreach ($policy['bindings'] as $binding) {
-            if ($binding['role'] === 'roles/storage.objectViewer') {
-                if (in_array('allUsers', $binding['members'])) {
-                    $this->systemLogger->log(sprintf('Bucket "%s" used as storage and target was already public, no need to change the policy.', $this->bucketName), LOG_INFO);
-                    $this->bucketIsPublic = true;
-                    return;
-                }
-            }
-        }
-
-        $policy['bindings'][] = [
-            'role' => 'roles/storage.objectViewer',
-            'members' => ['allUsers']
-        ];
-        $storageBucket->iam()->setPolicy($policy);
-        $this->bucketIsPublic = true;
-
-        $this->systemLogger->log(sprintf('Changed policy for bucket "%s" used as storage and target: enabled public read-access', $this->bucketName), LOG_INFO);
     }
 
     /**
@@ -400,8 +362,6 @@ class GcsTarget implements TargetInterface
         $storage = $collection->getStorage();
         if ($storage instanceof GcsStorage && $storage->getBucketName() === $this->bucketName) {
             $storageBucket = $this->storageClient->bucket($storage->getBucketName());
-            $this->enablePublicReadAccessForStorageBucket($storageBucket);
-
             $storageBucket->object($storage->getKeyPrefix() . $resource->getSha1())->update(['contentType' => $resource->getMediaType()]);
             return;
         }
