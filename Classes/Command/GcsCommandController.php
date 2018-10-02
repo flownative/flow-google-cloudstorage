@@ -11,6 +11,7 @@ namespace Flownative\Google\CloudStorage\Command;
  * source code.
  */
 
+use Flownative\Google\CloudStorage\Exception;
 use Flownative\Google\CloudStorage\GcsTarget;
 use Flownative\Google\CloudStorage\StorageFactory;
 use Neos\Flow\Annotations as Flow;
@@ -80,8 +81,8 @@ final class GcsCommandController extends CommandController
     /**
      * Republish a collection
      *
-     * This command forces publishing resources of the given collection, for example in order to set the content type
-     * of published resources when you switched from a two-bucket to a one-bucket setup.
+     * This command forces publishing resources of the given collection by copying resources from the respective storage
+     * to target bucket.
      *
      * @param string $collection Name of the collection to publish
      */
@@ -96,7 +97,7 @@ final class GcsCommandController extends CommandController
 
         $target = $collection->getTarget();
         if (!$target instanceof GcsTarget) {
-            $this->outputLine('<error>The storage defined in collection %s is not a Google Cloud Storage target.</error>', [$collectionName]);
+            $this->outputLine('<error>The target defined in collection %s is not a Google Cloud Storage target.</error>', [$collectionName]);
             exit(1);
         }
 
@@ -117,6 +118,56 @@ final class GcsCommandController extends CommandController
             exit(2);
         }
         $this->output->progressFinish();
+        $this->outputLine();
+    }
+
+    /**
+     * Update resource metadata
+     *
+     * This command iterates through all known resources of a collection and sets the metadata in the configured target.
+     * The resource must exist in the target, but metadata like "content-type" will be update.
+     *
+     * This command can be used for migrating from a two-bucket to a one-bucket setup, where storage and target are using
+     * the same bucket.
+     *
+     * @param string $collection Name of the collection to publish
+     */
+    public function updateResourceMetadataCommand(string $collection = 'persistent')
+    {
+        $collectionName = $collection;
+        $collection = $this->resourceManager->getCollection($collection);
+        if (!$collection) {
+            $this->outputLine('<error>The collection %s does not exist.</error>', [$collectionName]);
+            exit(1);
+        }
+
+        $target = $collection->getTarget();
+        if (!$target instanceof GcsTarget) {
+            $this->outputLine('<error>The target defined in collection %s is not a Google Cloud Storage target.</error>', [$collectionName]);
+            exit(1);
+        }
+
+        $this->outputLine();
+        $this->outputLine('Updating metadata for resources in bucket %s ...', [$target->getBucketName()]);
+        $this->outputLine();
+        try {
+            foreach ($collection->getObjects() as $object) {
+                /** @var StorageObject $object */
+                $resource = $this->resourceManager->getResourceBySha1($object->getSha1());
+                if ($resource) {
+                    try {
+                        $target->updateResourceMetadata($resource);
+                        $this->outputLine('   ✅  %s %s ', [$resource->getSha1(), $resource->getFilename()]);
+                    } catch (Exception $exception) {
+                        $this->outputLine('   ❌  %s <error>%s</error>', [$resource->getSha1(), $exception->getMessage()]);
+                    }
+                }
+            }
+        } catch (\Exception $e) {
+            $this->outputLine('<error>Publishing failed</error>');
+            $this->outputLine($e->getMessage());
+            exit(2);
+        }
         $this->outputLine();
     }
 }

@@ -11,8 +11,10 @@ namespace Flownative\Google\CloudStorage;
  * source code.
  */
 
+use Flownative\Google\CloudStorage\Exception as CloudStorageException;
 use Google\Cloud\Core\Exception\GoogleException;
 use Google\Cloud\Core\Exception\NotFoundException;
+use Google\Cloud\Core\Exception\ServiceException;
 use Google\Cloud\Storage\Bucket;
 use Google\Cloud\Storage\StorageClient;
 use Google\Cloud\Storage\StorageObject;
@@ -197,7 +199,7 @@ class GcsTarget implements TargetInterface
      * Initialize the Google Cloud Storage instance
      *
      * @return void
-     * @throws \Flownative\Google\CloudStorage\Exception
+     * @throws CloudStorageException
      */
     public function initializeObject()
     {
@@ -222,6 +224,14 @@ class GcsTarget implements TargetInterface
     public function getKeyPrefix()
     {
         return $this->keyPrefix;
+    }
+
+    /**
+     * @return string
+     */
+    public function getBucketName(): string
+    {
+        return $this->bucketName;
     }
 
     /**
@@ -399,6 +409,27 @@ class GcsTarget implements TargetInterface
                 return;
             }
             $this->publishFile($sourceStream, $this->getRelativePublicationPathAndFilename($resource), $resource);
+        }
+    }
+
+    /**
+     * Updates the metadata (currently content type) of a resource object already stored in this target
+     *
+     * @param PersistentResource $resource
+     * @throws \Flownative\Google\CloudStorage\Exception
+     */
+    public function updateResourceMetadata(PersistentResource $resource)
+    {
+        try {
+            $targetBucket = $this->storageClient->bucket($this->bucketName);
+        } catch (NotFoundException $exception) {
+            throw new \Flownative\Google\CloudStorage\Exception(sprintf('Failed retrieving bucket information for "%s".', $this->bucketName), 1538462744);
+        }
+        try {
+            $object = $targetBucket->object($this->getKeyPrefix() . $resource->getSha1());
+            $object->update(['contentType' => $resource->getMediaType()]);
+        } catch (ServiceException | NotFoundException $exception) {
+            throw new \Flownative\Google\CloudStorage\Exception(sprintf('Resource "%s" (%s) not found in bucket %s.', $resource->getSha1(), $resource->getFilename(), $this->bucketName), 1538462744);
         }
     }
 

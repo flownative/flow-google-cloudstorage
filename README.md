@@ -2,7 +2,7 @@
 [![Packagist](https://img.shields.io/packagist/v/flownative/google-cloudstorage.svg)](https://packagist.org/packages/flownative/google-cloudstorage)
 [![Maintenance level: Love](https://img.shields.io/badge/maintenance-%E2%99%A1%E2%99%A1%E2%99%A1-ff69b4.svg)](https://www.flownative.com/en/products/open-source.html)
 
-# Google Cloud Storage Adaptor for Neos 2.x/3.x and Flow 3.x/4.x
+# Google Cloud Storage Adaptor for Neos 3.x/4.x and Flow 4.x/5.x
 
 This [Flow](https://flow.neos.io) package allows you to store assets (resources) in [Google Cloud Storage](https://cloud.google.com/storage/)
 and publish resources to GCS. Because [Neos CMS](https://www.neos.io) is using Flow's resource management under the hood,
@@ -22,13 +22,7 @@ Using this connector, you can run a Neos website which does not store any asset 
 The Flownative Google Cloud Storage connector is installed as a regular Flow package via Composer. For your existing
 project, simply include `flownative/google-cloudstorage` into the dependencies of your Flow or Neos distribution:
 
-For Neos 2.3.*:
-
-```bash
-$ composer require flownative/google-cloudstorage:3.*
-```
-
-For Neos 3.*:
+For Neos 3.* and higher:
 
 ```bash
 $ composer require flownative/google-cloudstorage:4.*
@@ -138,8 +132,11 @@ Neos:
 
 Some notes regarding the configuration:
 
-You should create separate buckets for storage and target respectively, because the storage will remain private and the
-target will potentially be published. Even if it might work using one bucket for both, this is not recommended.
+You should create separate buckets for storage and target respectively in order to not mix up both structures.
+In a two-bucket setup, resources will be duplicated (the original is stored in the "storage" bucket and then
+copied to the "target" bucket). This is necessary in order to provide a meaningful filename to the web user.
+It is possible to use only one bucket as storage and target, but for that case you need to install a reverse
+proxy with path rewriting rules in order to simulate these filenames.
 
 The `keyPrefix` option allows you to share one bucket across multiple websites or applications. All object keys
 will be prefixed by the given string.
