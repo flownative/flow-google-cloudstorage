@@ -365,14 +365,26 @@ class GcsTarget implements TargetInterface
      * @return void
      * @throws Exception
      * @throws \Exception
-     * @throws \Neos\Flow\Exception
      */
     public function publishResource(PersistentResource $resource, CollectionInterface $collection)
     {
         $storage = $collection->getStorage();
         if ($storage instanceof GcsStorage && $storage->getBucketName() === $this->bucketName) {
-            $storageBucket = $this->storageClient->bucket($storage->getBucketName());
-            $storageBucket->object($storage->getKeyPrefix() . $resource->getSha1())->update(['contentType' => $resource->getMediaType()]);
+            $updated = false;
+            $retries = 0;
+            while (!$updated) {
+                try {
+                    $storageBucket = $this->storageClient->bucket($storage->getBucketName());
+                    $storageBucket->object($storage->getKeyPrefix() . $resource->getSha1())->update(['contentType' => $resource->getMediaType()]);
+                    $updated = true;
+                } catch (GoogleException $exception) {
+                    $retries ++;
+                    if ($retries > 10) {
+                        throw $exception;
+                    }
+                    usleep(10 * 2 ^ $retries);
+                }
+            }
             return;
         }
 

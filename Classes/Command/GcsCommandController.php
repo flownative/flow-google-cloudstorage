@@ -115,6 +115,7 @@ final class GcsCommandController extends CommandController
         } catch (\Exception $e) {
             $this->outputLine('<error>Publishing failed</error>');
             $this->outputLine($e->getMessage());
+            $this->outputLine(get_class($e));
             exit(2);
         }
         $this->output->progressFinish();
