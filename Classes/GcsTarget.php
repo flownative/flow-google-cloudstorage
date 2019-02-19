@@ -425,27 +425,6 @@ class GcsTarget implements TargetInterface
     }
 
     /**
-     * Updates the metadata (currently content type) of a resource object already stored in this target
-     *
-     * @param PersistentResource $resource
-     * @throws \Flownative\Google\CloudStorage\Exception
-     */
-    public function updateResourceMetadata(PersistentResource $resource)
-    {
-        try {
-            $targetBucket = $this->storageClient->bucket($this->bucketName);
-        } catch (NotFoundException $exception) {
-            throw new \Flownative\Google\CloudStorage\Exception(sprintf('Failed retrieving bucket information for "%s".', $this->bucketName), 1538462744);
-        }
-        try {
-            $object = $targetBucket->object($this->getKeyPrefix() . $resource->getSha1());
-            $object->update(['contentType' => $resource->getMediaType()]);
-        } catch (ServiceException | NotFoundException $exception) {
-            throw new \Flownative\Google\CloudStorage\Exception(sprintf('Resource "%s" (%s) not found in bucket %s.', $resource->getSha1(), $resource->getFilename(), $this->bucketName), 1538462744);
-        }
-    }
-
-    /**
      * Unpublishes the given persistent resource
      *
      * @param \Neos\Flow\ResourceManagement\PersistentResource $resource The resource to unpublish

@@ -11,11 +11,16 @@ namespace Flownative\Google\CloudStorage\Command;
  * source code.
  */
 
+use Doctrine\DBAL\FetchMode;
+use Doctrine\ORM\EntityManagerInterface;
 use Flownative\Google\CloudStorage\Exception;
 use Flownative\Google\CloudStorage\GcsTarget;
 use Flownative\Google\CloudStorage\StorageFactory;
+use Google\Cloud\Core\Exception\NotFoundException;
+use Google\Cloud\Core\Exception\ServiceException;
 use Neos\Flow\Annotations as Flow;
 use Neos\Flow\Cli\CommandController;
+use Neos\Flow\Persistence\PersistenceManagerInterface;
 use Neos\Flow\ResourceManagement\ResourceManager;
 use Neos\Flow\ResourceManagement\Storage\StorageObject;
 
@@ -39,6 +44,12 @@ final class GcsCommandController extends CommandController
     protected $resourceManager;
 
     /**
+     * @Flow\Inject(lazy=false)
+     * @var EntityManagerInterface
+     */
+    protected $entityManager;
+
+    /**
      * Checks the connection
      *
      * This command checks if the configured credentials and connectivity allows for connecting with the Google API.
@@ -46,7 +57,7 @@ final class GcsCommandController extends CommandController
      * @param string $bucket The bucket which is used for trying to upload and retrieve some test data
      * @return void
      */
-    public function connectCommand(string $bucket)
+    public function connectCommand(string $bucket): void
     {
         try {
             $storageClient = $this->storageFactory->create();
@@ -86,10 +97,10 @@ final class GcsCommandController extends CommandController
      *
      * @param string $collection Name of the collection to publish
      */
-    public function republishCommand(string $collection = 'persistent')
+    public function republishCommand(string $collection = 'persistent'): void
     {
         $collectionName = $collection;
-        $collection = $this->resourceManager->getCollection($collection);
+        $collection = $this->resourceManager->getCollection($collectionName);
         if (!$collection) {
             $this->outputLine('<error>The collection %s does not exist.</error>', [$collectionName]);
             exit(1);
@@ -132,8 +143,9 @@ final class GcsCommandController extends CommandController
      * the same bucket.
      *
      * @param string $collection Name of the collection to publish
+     * @throws \Doctrine\DBAL\DBALException
      */
-    public function updateResourceMetadataCommand(string $collection = 'persistent')
+    public function updateResourceMetadataCommand(string $collection = 'persistent'): void
     {
         $collectionName = $collection;
         $collection = $this->resourceManager->getCollection($collection);
@@ -151,17 +163,38 @@ final class GcsCommandController extends CommandController
         $this->outputLine();
         $this->outputLine('Updating metadata for resources in bucket %s ...', [$target->getBucketName()]);
         $this->outputLine();
+
+
         try {
-            foreach ($collection->getObjects() as $object) {
-                /** @var StorageObject $object */
-                $resource = $this->resourceManager->getResourceBySha1($object->getSha1());
-                if ($resource) {
-                    try {
-                        $target->updateResourceMetadata($resource);
-                        $this->outputLine('   ✅  %s %s ', [$resource->getSha1(), $resource->getFilename()]);
-                    } catch (Exception $exception) {
-                        $this->outputLine('   ❌  %s <error>%s</error>', [$resource->getSha1(), $exception->getMessage()]);
-                    }
+            $storageClient = $this->storageFactory->create();
+        } catch (\Exception $e) {
+            $this->outputLine('<error>%s</error>', [$e->getMessage()]);
+            exit(1);
+        }
+
+        $targetBucket = $storageClient->bucket($target->getBucketName());
+        $targetKeyPrefix = $target->getKeyPrefix();
+        $queryResult = $this->entityManager->getConnection()->executeQuery(
+            'SELECT sha1, filename, mediatype FROM neos_flow_resourcemanagement_persistentresource AS r WHERE collectionname = :collectionName ORDER BY sha1',
+            [
+                'collectionName' => $collectionName
+            ]
+        );
+
+        try {
+            $previousSha1 = null;
+            while ($resourceRecord = $queryResult->fetch(FetchMode::ASSOCIATIVE)) {
+                if ($resourceRecord['sha1'] === $previousSha1) {
+                    continue;
+                }
+                $previousSha1 = $resourceRecord['sha1'];
+
+                try {
+                    $object = $targetBucket->object($targetKeyPrefix . $resourceRecord['sha1']);
+                    $object->update(['contentType' => $resourceRecord['mediatype']]);
+                    $this->outputLine('   ✅  %s %s ', [$resourceRecord['sha1'], $resourceRecord['filename']]);
+                } catch (ServiceException | NotFoundException $exception) {
+                    $this->outputLine('   ❌  <error>%s %s</error>', [$resourceRecord['sha1'], $resourceRecord['filename']]);
                 }
             }
         } catch (\Exception $e) {

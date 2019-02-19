@@ -34,7 +34,7 @@ class StorageFactory
     protected $environment;
 
     /**
-     * Creates a new Storage instance and authenticates agains the Google API
+     * Creates a new Storage instance and authenticates against the Google API
      *
      * @param string $credentialsProfileName
      * @return \Google\Cloud\Storage\StorageClient
