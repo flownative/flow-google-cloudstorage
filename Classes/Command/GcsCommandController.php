@@ -11,16 +11,13 @@ namespace Flownative\Google\CloudStorage\Command;
  * source code.
  */
 
-use Doctrine\DBAL\FetchMode;
 use Doctrine\ORM\EntityManagerInterface;
-use Flownative\Google\CloudStorage\Exception;
 use Flownative\Google\CloudStorage\GcsTarget;
 use Flownative\Google\CloudStorage\StorageFactory;
 use Google\Cloud\Core\Exception\NotFoundException;
 use Google\Cloud\Core\Exception\ServiceException;
 use Neos\Flow\Annotations as Flow;
 use Neos\Flow\Cli\CommandController;
-use Neos\Flow\Persistence\PersistenceManagerInterface;
 use Neos\Flow\ResourceManagement\ResourceManager;
 use Neos\Flow\ResourceManagement\Storage\StorageObject;
 
@@ -164,7 +161,6 @@ final class GcsCommandController extends CommandController
         $this->outputLine('Updating metadata for resources in bucket %s ...', [$target->getBucketName()]);
         $this->outputLine();
 
-
         try {
             $storageClient = $this->storageFactory->create();
         } catch (\Exception $e) {
@@ -172,9 +168,15 @@ final class GcsCommandController extends CommandController
             exit(1);
         }
 
+        if ($this->objectManager->isRegistered(EntityManagerInterface::class)) {
+            $entityManager = $this->objectManager->get(EntityManagerInterface::class);
+        } else {
+            $entityManager = $this->objectManager->get(\Doctrine\Common\Persistence\ObjectManager::class);
+        }
+
         $targetBucket = $storageClient->bucket($target->getBucketName());
         $targetKeyPrefix = $target->getKeyPrefix();
-        $queryResult = $this->entityManager->getConnection()->executeQuery(
+        $queryResult = $entityManager->getConnection()->executeQuery(
             'SELECT sha1, filename, mediatype FROM neos_flow_resourcemanagement_persistentresource AS r WHERE collectionname = :collectionName ORDER BY sha1',
             [
                 'collectionName' => $collectionName
@@ -183,7 +185,7 @@ final class GcsCommandController extends CommandController
 
         try {
             $previousSha1 = null;
-            while ($resourceRecord = $queryResult->fetch(FetchMode::ASSOCIATIVE)) {
+            while ($resourceRecord = $queryResult->fetch(\PDO::FETCH_ASSOC)) {
                 if ($resourceRecord['sha1'] === $previousSha1) {
                     continue;
                 }
