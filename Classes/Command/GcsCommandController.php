@@ -41,12 +41,6 @@ final class GcsCommandController extends CommandController
     protected $resourceManager;
 
     /**
-     * @Flow\Inject(lazy=false)
-     * @var EntityManagerInterface
-     */
-    protected $entityManager;
-
-    /**
      * Checks the connection
      *
      * This command checks if the configured credentials and connectivity allows for connecting with the Google API.
@@ -140,7 +134,6 @@ final class GcsCommandController extends CommandController
      * the same bucket.
      *
      * @param string $collection Name of the collection to publish
-     * @throws \Doctrine\DBAL\DBALException
      */
     public function updateResourceMetadataCommand(string $collection = 'persistent'): void
     {
