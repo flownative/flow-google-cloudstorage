@@ -133,9 +133,13 @@ final class GcsCommandController extends CommandController
      * This command can be used for migrating from a two-bucket to a one-bucket setup, where storage and target are using
      * the same bucket.
      *
+     * The resources are processed in alphabetical order of their SHA1 content hashes. That allows you to resume updates
+     * at a specific resource (using the --startSha1 option) in case a large update was interrupted.
+     *
      * @param string $collection Name of the collection to publish
+     * @param string|null $startSha1 If specified, updates are starting at this SHA1 in alphabetical order
      */
-    public function updateResourceMetadataCommand(string $collection = 'persistent'): void
+    public function updateResourceMetadataCommand(string $collection = 'persistent', string $startSha1 = null): void
     {
         $collectionName = $collection;
         $collection = $this->resourceManager->getCollection($collection);
@@ -169,12 +173,21 @@ final class GcsCommandController extends CommandController
 
         $targetBucket = $storageClient->bucket($target->getBucketName());
         $targetKeyPrefix = $target->getKeyPrefix();
-        $queryResult = $entityManager->getConnection()->executeQuery(
-            'SELECT sha1, filename, mediatype FROM neos_flow_resourcemanagement_persistentresource AS r WHERE collectionname = :collectionName ORDER BY sha1',
-            [
-                'collectionName' => $collectionName
-            ]
-        );
+
+        if ($startSha1 === null) {
+            $queryResult = $entityManager->getConnection()->executeQuery(
+                'SELECT sha1, filename, mediatype FROM neos_flow_resourcemanagement_persistentresource AS r WHERE collectionname = :collectionName ORDER BY sha1',
+                ['collectionName' => $collectionName]
+            );
+        } else {
+            $queryResult = $entityManager->getConnection()->executeQuery(
+                'SELECT sha1, filename, mediatype FROM neos_flow_resourcemanagement_persistentresource AS r WHERE collectionname = :collectionName AND sha1 > :startSha1 ORDER BY sha1',
+                [
+                    'collectionName' => $collectionName,
+                    'startSha1' => $startSha1
+                ]
+            );
+        }
 
         try {
             $previousSha1 = null;
