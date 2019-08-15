@@ -456,7 +456,7 @@ class GcsStorage implements WritableStorageInterface
     /**
      * @return Bucket
      */
-    protected function getCurrentBucket()
+    protected function getCurrentBucket(): Bucket
     {
         if ($this->currentBucket === null) {
             $this->currentBucket = $this->storageClient->bucket($this->bucketName);

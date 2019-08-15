@@ -12,6 +12,7 @@ namespace Flownative\Google\CloudStorage;
  */
 
 use Google\Cloud\Core\ServiceBuilder;
+use Google\Cloud\Storage\StorageClient;
 use Neos\Flow\Annotations as Flow;
 
 /**
@@ -37,10 +38,10 @@ class StorageFactory
      * Creates a new Storage instance and authenticates against the Google API
      *
      * @param string $credentialsProfileName
-     * @return \Google\Cloud\Storage\StorageClient
+     * @return StorageClient
      * @throws Exception
      */
-    public function create($credentialsProfileName = 'default')
+    public function create($credentialsProfileName = 'default'): StorageClient
     {
         if (!isset($this->credentialProfiles[$credentialsProfileName])) {
             throw new Exception(sprintf('The specified Google Cloud Storage credentials profile "%s" does not exist, please check your settings.', $credentialsProfileName), 1446553024);
@@ -51,7 +52,7 @@ class StorageFactory
                 'keyFile' => json_decode(base64_decode($this->credentialProfiles[$credentialsProfileName]['credentials']['privateKeyJsonBase64Encoded']), true)
             ]);
         } else {
-            if (substr($this->credentialProfiles[$credentialsProfileName]['credentials']['privateKeyJsonPathAndFilename'], 0, 1) !== '/') {
+            if (strpos($this->credentialProfiles[$credentialsProfileName]['credentials']['privateKeyJsonPathAndFilename'], '/') !== 0) {
                 $privateKeyPathAndFilename = FLOW_PATH_ROOT . $this->credentialProfiles[$credentialsProfileName]['credentials']['privateKeyJsonPathAndFilename'];
             } else {
                 $privateKeyPathAndFilename = $this->credentialProfiles[$credentialsProfileName]['credentials']['privateKeyJsonPathAndFilename'];
