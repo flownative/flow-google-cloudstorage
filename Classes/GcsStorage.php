@@ -171,7 +171,7 @@ class GcsStorage implements WritableStorageInterface
      * @return PersistentResource A resource object representing the imported resource
      * @throws \Neos\Flow\ResourceManagement\Storage\Exception
      */
-    public function importResource($source, $collectionName)
+    public function importResource($source, $collectionName): PersistentResource
     {
         $temporaryTargetPathAndFilename = $this->environment->getPathToTemporaryDirectory() . uniqid('Flownative_Google_CloudStorage_');
 
@@ -194,7 +194,9 @@ class GcsStorage implements WritableStorageInterface
         try {
             $resource = $this->importTemporaryFile($temporaryTargetPathAndFilename, $collectionName);
         } catch (\Exception $e) {
-            throw new Exception(sprintf('Google Cloud Storage: Could not import the temporary file from "%s" to to collection "%s": %s', $temporaryTargetPathAndFilename, $collectionName, $e->getMessage()), 1538034191);
+            $message = sprintf('Google Cloud Storage: Could not import the temporary file from "%s" to to collection "%s": %s', $temporaryTargetPathAndFilename, $collectionName, $e->getMessage());
+            $this->systemLogger->log($message, \LOG_ERR);
+            throw new Exception($message, 1538034191);
         }
         unlink($temporaryTargetPathAndFilename);
 
@@ -215,7 +217,7 @@ class GcsStorage implements WritableStorageInterface
      * @return PersistentResource A resource object representing the imported resource
      * @api
      */
-    public function importResourceFromContent($content, $collectionName)
+    public function importResourceFromContent($content, $collectionName): PersistentResource
     {
         $sha1Hash = sha1($content);
         $md5Hash = md5($content);
@@ -247,11 +249,11 @@ class GcsStorage implements WritableStorageInterface
      *
      * @param array $uploadInfo An array detailing the resource to import (expected keys: name, tmp_name)
      * @param string $collectionName Name of the collection this uploaded resource should be part of
-     * @return string A resource object representing the imported resource
-     * @throws Exception
+     * @return PersistentResource A resource object representing the imported resource
+     * @throws \Exception
      * @api
      */
-    public function importUploadedResource(array $uploadInfo, $collectionName)
+    public function importUploadedResource(array $uploadInfo, $collectionName): PersistentResource
     {
         $pathInfo = pathinfo($uploadInfo['name']);
         $originalFilename = $pathInfo['basename'];
@@ -276,12 +278,17 @@ class GcsStorage implements WritableStorageInterface
         $resource->setSha1($sha1Hash);
         $resource->setMd5($md5Hash);
 
-        $this->getCurrentBucket()->upload(fopen($newSourcePathAndFilename, 'r'), [
-            'name' => $this->keyPrefix . $sha1Hash,
-            'metadata' => [
-                'contentType' => $resource->getMediaType()
-            ]
-        ]);
+        try {
+            $this->getCurrentBucket()->upload(fopen($newSourcePathAndFilename, 'r'), [
+                'name' => $this->keyPrefix . $sha1Hash,
+                'metadata' => [
+                    'contentType' => $resource->getMediaType()
+                ]
+            ]);
+        } catch (\Exception $exception) {
+            $this->systemLogger->log(sprintf('Google Cloud Storage: Failed importing uploaded resource %s into bucket %s: %s', $this->keyPrefix . $sha1Hash, $this->getBucketName(), $exception->getMessage()), LOG_ERR);
+            throw $exception;
+        }
 
         return $resource;
     }
