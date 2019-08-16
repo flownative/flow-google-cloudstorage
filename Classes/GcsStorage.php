@@ -20,7 +20,6 @@ use Neos\Flow\ResourceManagement\CollectionInterface;
 use Neos\Flow\ResourceManagement\PersistentResource;
 use Neos\Flow\ResourceManagement\ResourceManager;
 use Neos\Flow\ResourceManagement\ResourceRepository;
-use Neos\Flow\ResourceManagement\Storage\Exception;
 use Neos\Flow\ResourceManagement\Storage\StorageObject;
 use Neos\Flow\ResourceManagement\Storage\WritableStorageInterface;
 use Neos\Flow\Utility\Environment;
@@ -117,15 +116,19 @@ class GcsStorage implements WritableStorageInterface
                     }
             }
         }
+
+        if (empty($this->bucketName)) {
+            throw new Exception(sprintf('No bucket name was specified in the configuration of the "%s" resource GcsStorage. Please check your settings.', $name), 1565942783);
+        }
     }
 
     /**
      * Initialize the Google Cloud Storage instance
      *
      * @return void
-     * @throws \Flownative\Google\CloudStorage\Exception
+     * @throws Exception
      */
-    public function initializeObject()
+    public function initializeObject(): void
     {
         $this->storageClient = $this->storageFactory->create();
     }
@@ -169,7 +172,6 @@ class GcsStorage implements WritableStorageInterface
      * @param string | resource $source The URI (or local path and filename) or the PHP resource stream to import the resource from
      * @param string $collectionName Name of the collection the new PersistentResource belongs to
      * @return PersistentResource A resource object representing the imported resource
-     * @throws \Neos\Flow\ResourceManagement\Storage\Exception
      */
     public function importResource($source, $collectionName): PersistentResource
     {
