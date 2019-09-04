@@ -1,4 +1,6 @@
 <?php
+declare(strict_types=1);
+
 namespace Flownative\Google\CloudStorage;
 
 /*
@@ -14,6 +16,7 @@ namespace Flownative\Google\CloudStorage;
 use Google\Cloud\Core\ServiceBuilder;
 use Google\Cloud\Storage\StorageClient;
 use Neos\Flow\Annotations as Flow;
+use Neos\Flow\Utility\Environment;
 
 /**
  * Factory for the Google Cloud Storage service class
@@ -30,7 +33,7 @@ class StorageFactory
 
     /**
      * @Flow\Inject
-     * @var \Neos\Flow\Utility\Environment
+     * @var Environment
      */
     protected $environment;
 
@@ -41,7 +44,7 @@ class StorageFactory
      * @return StorageClient
      * @throws Exception
      */
-    public function create($credentialsProfileName = 'default'): StorageClient
+    public function create(string $credentialsProfileName = 'default'): StorageClient
     {
         if (!isset($this->credentialProfiles[$credentialsProfileName])) {
             throw new Exception(sprintf('The specified Google Cloud Storage credentials profile "%s" does not exist, please check your settings.', $credentialsProfileName), 1446553024);
