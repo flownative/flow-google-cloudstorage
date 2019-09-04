@@ -20,7 +20,7 @@ use Google\Cloud\Storage\Bucket;
 use Google\Cloud\Storage\StorageClient;
 use Google\Cloud\Storage\StorageObject;
 use Neos\Flow\Annotations as Flow;
-use Neos\Flow\Log\SystemLoggerInterface;
+use Neos\Flow\Log\Utility\LogEnvironment;
 use Neos\Flow\ResourceManagement\CollectionInterface;
 use Neos\Flow\ResourceManagement\Exception;
 use Neos\Flow\ResourceManagement\PersistentResource;
@@ -29,6 +29,7 @@ use Neos\Flow\ResourceManagement\ResourceManager;
 use Neos\Flow\ResourceManagement\ResourceMetaDataInterface;
 use Neos\Flow\ResourceManagement\Target\TargetInterface;
 use Neos\Flow\Utility\Environment;
+use Psr\Log\LoggerInterface;
 
 /**
  * A resource publishing target based on Amazon S3
@@ -102,9 +103,9 @@ class GcsTarget implements TargetInterface
 
     /**
      * @Flow\Inject
-     * @var SystemLoggerInterface
+     * @var LoggerInterface
      */
-    protected $systemLogger;
+    protected $logger;
 
     /**
      * @Flow\Inject
@@ -276,7 +277,7 @@ class GcsTarget implements TargetInterface
             }
         }
 
-        $this->systemLogger->log(sprintf('Removing %s obsolete objects from target bucket "%s".', count($obsoleteObjects), $this->bucketName), LOG_INFO);
+        $this->logger->info(sprintf('Removing %s obsolete objects from target bucket "%s".', count($obsoleteObjects), $this->bucketName), LogEnvironment::fromMethodName(__METHOD__));
         foreach (array_keys($obsoleteObjects) as $relativePathAndFilename) {
             try {
                 $targetBucket->object($this->keyPrefix . $relativePathAndFilename)->delete();
@@ -299,13 +300,13 @@ class GcsTarget implements TargetInterface
         $storageBucket = $this->storageClient->bucket($storageBucketName);
         $iteration = 0;
 
-        $this->systemLogger->log(sprintf('Found %s existing objects in target bucket "%s".', count($existingObjects), $this->bucketName), LOG_INFO);
+        $this->logger->info(sprintf('Found %s existing objects in target bucket "%s".', count($existingObjects), $this->bucketName), LogEnvironment::fromMethodName(__METHOD__));
 
         foreach ($collection->getObjects() as $object) {
             /** @var \Neos\Flow\ResourceManagement\Storage\StorageObject $object */
             $targetObjectName = $this->keyPrefix . $this->getRelativePublicationPathAndFilename($object);
             if (isset($existingObjects[$targetObjectName])) {
-                $this->systemLogger->log(sprintf('Skipping object "%s" because it already exists in bucket "%s"', $targetObjectName, $this->bucketName), LOG_DEBUG);
+                $this->logger->debug(sprintf('Skipping object "%s" because it already exists in bucket "%s"', $targetObjectName, $this->bucketName), LogEnvironment::fromMethodName(__METHOD__));
                 unset($obsoleteObjects[$targetObjectName]);
                 continue;
             }
@@ -316,10 +317,10 @@ class GcsTarget implements TargetInterface
                 } catch (\Exception $e) {
                     $this->messageCollector->append(sprintf('Could not publish resource with SHA1 hash %s of collection %s from bucket %s to %s: %s', $object->getSha1(), $collection->getName(), $storageBucketName, $this->bucketName, $e->getMessage()));
                 }
-                $this->systemLogger->log(sprintf('Successfully copied resource as object "%s" (MD5: %s) from bucket "%s" to bucket "%s" (with GZIP compression)', $targetObjectName, $object->getMd5() ?: 'unknown', $storageBucketName, $this->bucketName), LOG_DEBUG);
+                $this->logger->debug(sprintf('Successfully copied resource as object "%s" (MD5: %s) from bucket "%s" to bucket "%s" (with GZIP compression)', $targetObjectName, $object->getMd5() ?: 'unknown', $storageBucketName, $this->bucketName), LogEnvironment::fromMethodName(__METHOD__));
             } else {
                 try {
-                    $this->systemLogger->log(sprintf('Copy object "%s" to bucket "%s"', $targetObjectName, $this->bucketName), LOG_DEBUG);
+                    $this->logger->debug(sprintf('Copy object "%s" to bucket "%s"', $targetObjectName, $this->bucketName), LogEnvironment::fromMethodName(__METHOD__));
                     $options = [
                         'name' => $targetObjectName,
                         'predefinedAcl' => 'publicRead',
@@ -337,13 +338,13 @@ class GcsTarget implements TargetInterface
                     }
                     continue;
                 }
-                $this->systemLogger->log(sprintf('Successfully copied resource as object "%s" (MD5: %s) from bucket "%s" to bucket "%s"', $targetObjectName, $object->getMd5() ?: 'unknown', $storageBucketName, $this->bucketName), LOG_DEBUG);
+                $this->logger->debug(sprintf('Successfully copied resource as object "%s" (MD5: %s) from bucket "%s" to bucket "%s"', $targetObjectName, $object->getMd5() ?: 'unknown', $storageBucketName, $this->bucketName), LogEnvironment::fromMethodName(__METHOD__));
             }
             unset($targetObjectName);
             $iteration++;
         }
 
-        $this->systemLogger->log(sprintf('Published %s new objects to target bucket "%s".', $iteration, $this->bucketName), LOG_INFO);
+        $this->logger->info(sprintf('Published %s new objects to target bucket "%s".', $iteration, $this->bucketName), LogEnvironment::fromMethodName(__METHOD__));
     }
 
     /**
@@ -413,7 +414,7 @@ class GcsTarget implements TargetInterface
                 return;
             }
 
-            $this->systemLogger->log(sprintf('Successfully published resource as object "%s" (MD5: %s) by copying from bucket "%s" to bucket "%s"', $targetObjectName, $resource->getMd5() ?: 'unknown', $storage->getBucketName(), $this->bucketName), LOG_DEBUG);
+            $this->logger->debug(sprintf('Successfully published resource as object "%s" (MD5: %s) by copying from bucket "%s" to bucket "%s"', $targetObjectName, $resource->getMd5() ?: 'unknown', $storage->getBucketName(), $this->bucketName), LogEnvironment::fromMethodName(__METHOD__));
         } else {
             $sourceStream = $resource->getStream();
             if ($sourceStream === false) {
@@ -442,7 +443,7 @@ class GcsTarget implements TargetInterface
         try {
             $objectName = $this->keyPrefix . $this->getRelativePublicationPathAndFilename($resource);
             $this->getCurrentBucket()->object($objectName)->delete();
-            $this->systemLogger->log(sprintf('Successfully unpublished resource as object "%s" (MD5: %s) from bucket "%s"', $objectName, $resource->getMd5() ?: 'unknown', $this->bucketName), LOG_DEBUG);
+            $this->logger->debug(sprintf('Successfully unpublished resource as object "%s" (MD5: %s) from bucket "%s"', $objectName, $resource->getMd5() ?: 'unknown', $this->bucketName), LogEnvironment::fromMethodName(__METHOD__));
         } catch (NotFoundException $e) {
         }
     }
@@ -494,14 +495,14 @@ class GcsTarget implements TargetInterface
                 $sourceStream = fopen($temporaryTargetPathAndFilename, 'rb');
                 $uploadParameters['metadata']['contentEncoding'] = 'gzip';
 
-                $this->systemLogger->log(sprintf('Converted resource data of object "%s" in bucket "%s" with MD5 hash "%s" to GZIP with level %s.', $objectName, $this->bucketName, $metaData->getMd5() ?: 'unknown', $this->gzipCompressionLevel), LOG_DEBUG);
+                $this->logger->debug(sprintf('Converted resource data of object "%s" in bucket "%s" with MD5 hash "%s" to GZIP with level %s.', $objectName, $this->bucketName, $metaData->getMd5() ?: 'unknown', $this->gzipCompressionLevel), LogEnvironment::fromMethodName(__METHOD__));
             } catch (\Exception $e) {
                 $this->messageCollector->append(sprintf('Failed publishing resource as object "%s" in bucket "%s" with MD5 hash "%s": %s', $objectName, $this->bucketName, $metaData->getMd5() ?: 'unknown', $e->getMessage()), LOG_WARNING, 1520257344878);
             }
         }
         try {
             $this->getCurrentBucket()->upload($sourceStream, $uploadParameters);
-            $this->systemLogger->log(sprintf('Successfully published resource as object "%s" in bucket "%s" with MD5 hash "%s"', $objectName, $this->bucketName, $metaData->getMd5() ?: 'unknown'), LOG_DEBUG);
+            $this->logger->debug(sprintf('Successfully published resource as object "%s" in bucket "%s" with MD5 hash "%s"', $objectName, $this->bucketName, $metaData->getMd5() ?: 'unknown'), LogEnvironment::fromMethodName(__METHOD__));
         } catch (\Exception $e) {
             $this->messageCollector->append(sprintf('Failed publishing resource as object "%s" in bucket "%s" with MD5 hash "%s": %s', $objectName, $this->bucketName, $metaData->getMd5() ?: 'unknown', $e->getMessage()), LOG_WARNING, 1506847965352);
         } finally {

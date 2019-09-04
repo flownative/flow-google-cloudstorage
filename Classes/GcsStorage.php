@@ -18,6 +18,7 @@ use Google\Cloud\Storage\Bucket;
 use Google\Cloud\Storage\StorageClient;
 use GuzzleHttp\Psr7\StreamWrapper;
 use Neos\Flow\Annotations as Flow;
+use Neos\Flow\Log\Utility\LogEnvironment;
 use Neos\Flow\ResourceManagement\CollectionInterface;
 use Neos\Flow\ResourceManagement\PersistentResource;
 use Neos\Flow\ResourceManagement\ResourceManager;
@@ -26,6 +27,7 @@ use Neos\Flow\ResourceManagement\Storage\StorageObject;
 use Neos\Flow\ResourceManagement\Storage\WritableStorageInterface;
 use Neos\Flow\Utility\Environment;
 use Neos\Utility\Exception\FilesException;
+use Psr\Log\LoggerInterface;
 
 /**
  * A resource storage based on Google Cloud Storage
@@ -89,9 +91,9 @@ class GcsStorage implements WritableStorageInterface
 
     /**
      * @Flow\Inject
-     * @var \Neos\Flow\Log\SystemLoggerInterface
+     * @var LoggerInterface
      */
-    protected $systemLogger;
+    protected $logger;
 
     /**
      * Constructor
@@ -202,7 +204,7 @@ class GcsStorage implements WritableStorageInterface
             $resource = $this->importTemporaryFile($temporaryTargetPathAndFilename, $collectionName);
         } catch (\Exception $e) {
             $message = sprintf('Google Cloud Storage: Could not import the temporary file from "%s" to to collection "%s": %s', $temporaryTargetPathAndFilename, $collectionName, $e->getMessage());
-            $this->systemLogger->log($message, \LOG_ERR);
+            $this->logger->error($message, LogEnvironment::fromMethodName(__METHOD__));
             throw new Exception($message, 1538034191);
         }
         unlink($temporaryTargetPathAndFilename);
@@ -293,7 +295,7 @@ class GcsStorage implements WritableStorageInterface
                 ]
             ]);
         } catch (\Exception $exception) {
-            $this->systemLogger->log(sprintf('Google Cloud Storage: Failed importing uploaded resource %s into bucket %s: %s', $this->keyPrefix . $sha1Hash, $this->getBucketName(), $exception->getMessage()), LOG_ERR);
+            $this->logger->error(sprintf('Google Cloud Storage: Failed importing uploaded resource %s into bucket %s: %s', $this->keyPrefix . $sha1Hash, $this->getBucketName(), $exception->getMessage()), LogEnvironment::fromMethodName(__METHOD__));
             throw $exception;
         }
 
@@ -337,7 +339,7 @@ class GcsStorage implements WritableStorageInterface
             return false;
         } catch (\Exception $e) {
             $message = sprintf('Google Cloud Storage: Could not retrieve stream for resource %s (/%s/%s%s). %s', $resource->getFilename(), $this->bucketName, $this->keyPrefix, $resource->getSha1(), $e->getMessage());
-            $this->systemLogger->log($message, \LOG_ERR);
+            $this->logger->error($message, LogEnvironment::fromMethodName(__METHOD__));
             throw new Exception($message, 1446667860);
         }
     }
@@ -361,7 +363,7 @@ class GcsStorage implements WritableStorageInterface
                 return false;
             }
             $message = sprintf('Google Cloud Storage: Could not retrieve stream for resource (gs://%s/%s). %s', $this->bucketName, $this->keyPrefix . ltrim($relativePath, '/'), $e->getMessage());
-            $this->systemLogger->log($message, \LOG_ERR);
+            $this->logger->error($message, LogEnvironment::fromMethodName(__METHOD__));
             throw new Exception($message, 1446667861);
         }
     }
@@ -443,17 +445,17 @@ class GcsStorage implements WritableStorageInterface
             } catch (\Exception $exception) {
                 if (!$bucket->exists()) {
                     $message = sprintf('Google Cloud Storage: Failed importing the temporary file into storage collection "%s" because the target bucket "%s" does not exist.', $collectionName, $bucket->name());
-                    $this->systemLogger->log($message, LOG_ERR);
-                    throw new \Exception($message);
+                    $this->logger->error($message, LogEnvironment::fromMethodName(__METHOD__));
+                    throw new \Exception($message, 1567591469);
                 }
 
-                $this->systemLogger->log(sprintf('Google Cloud Storage: Failed importing the temporary file into storage collection "%s": %s', $collectionName, $exception->getMessage()), LOG_ERR);
+                $this->logger->error(sprintf('Google Cloud Storage: Failed importing the temporary file into storage collection "%s": %s', $collectionName, $exception->getMessage()), LogEnvironment::fromMethodName(__METHOD__));
                 throw $exception;
             }
 
-            $this->systemLogger->log(sprintf('Google Cloud Storage: Successfully imported resource as object "%s" into bucket "%s" with MD5 hash "%s"', $sha1Hash, $this->bucketName, $resource->getMd5() ?: 'unknown'), LOG_INFO);
+            $this->logger->info(sprintf('Google Cloud Storage: Successfully imported resource as object "%s" into bucket "%s" with MD5 hash "%s"', $sha1Hash, $this->bucketName, $resource->getMd5() ?: 'unknown'), LogEnvironment::fromMethodName(__METHOD__));
         } else {
-            $this->systemLogger->log(sprintf('Google Cloud Storage: Did not import resource as object "%s" into bucket "%s" because that object already existed.', $sha1Hash, $this->bucketName), LOG_INFO);
+            $this->logger->info(sprintf('Google Cloud Storage: Did not import resource as object "%s" into bucket "%s" because that object already existed.', $sha1Hash, $this->bucketName), LogEnvironment::fromMethodName(__METHOD__));
         }
 
         return $resource;
