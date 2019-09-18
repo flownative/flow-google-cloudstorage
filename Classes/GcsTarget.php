@@ -32,7 +32,7 @@ use Neos\Flow\Utility\Environment;
 use Psr\Log\LoggerInterface;
 
 /**
- * A resource publishing target based on Amazon S3
+ * A resource publishing target based on Google Cloud Storage
  */
 class GcsTarget implements TargetInterface
 {
@@ -42,14 +42,14 @@ class GcsTarget implements TargetInterface
      *
      * @var string
      */
-    protected $name;
+    protected $name = '';
 
     /**
      * Name of the S3 bucket which should be used for publication
      *
      * @var string
      */
-    protected $bucketName;
+    protected $bucketName = '';
 
     /**
      * A prefix to use for the key of bucket objects used by this storage
@@ -68,7 +68,7 @@ class GcsTarget implements TargetInterface
     /**
      * @var string
      */
-    protected $baseUri;
+    protected $baseUri = '';
 
     /**
      * @var int
@@ -93,13 +93,6 @@ class GcsTarget implements TargetInterface
         'application/x-font-woff',
         'image/svg+xml'
     ];
-
-    /**
-     * Internal cache for known storages, indexed by storage name
-     *
-     * @var array<\Neos\Flow\ResourceManagement\Storage\StorageInterface>
-     */
-    protected $storages = [];
 
     /**
      * @Flow\Inject
@@ -147,11 +140,6 @@ class GcsTarget implements TargetInterface
     protected $existingObjectsInfo;
 
     /**
-     * @var bool
-     */
-    protected $bucketIsPublic;
-
-    /**
      * Constructor
      *
      * @param string $name Name of this target instance, according to the resource settings
@@ -176,7 +164,7 @@ class GcsTarget implements TargetInterface
                     $this->baseUri = $value;
                 break;
                 case 'gzipCompressionLevel':
-                    $this->gzipCompressionLevel = intval($value);
+                    $this->gzipCompressionLevel = (int)$value;
                 break;
                 case 'gzipCompressionMediaTypes':
                     if (!is_array($value)) {
@@ -213,13 +201,13 @@ class GcsTarget implements TargetInterface
      *
      * @return string The target instance name
      */
-    public function getName()
+    public function getName(): string
     {
         return $this->name;
     }
 
     /**
-     * Returns the S3 object key prefix
+     * Returns the object key prefix
      *
      * @return string
      */
@@ -240,10 +228,11 @@ class GcsTarget implements TargetInterface
      * Publishes the whole collection to this target
      *
      * @param CollectionInterface $collection The collection to publish
+     * @return void
      * @throws \Exception
      * @throws \Neos\Flow\Exception
      */
-    public function publishCollection(CollectionInterface $collection)
+    public function publishCollection(CollectionInterface $collection): void
     {
         $storage = $collection->getStorage();
         $targetBucket = $this->getCurrentBucket();
@@ -292,6 +281,7 @@ class GcsTarget implements TargetInterface
      * @param array $existingObjects
      * @param array $obsoleteObjects
      * @param Bucket $targetBucket
+     * @return void
      * @throws \Neos\Flow\Exception
      */
     private function publishCollectionFromDifferentGoogleCloudStorage(CollectionInterface $collection, GcsStorage $storage, array $existingObjects, array &$obsoleteObjects, Bucket $targetBucket): void
@@ -353,7 +343,7 @@ class GcsTarget implements TargetInterface
      * @param string $relativePathAndFilename Relative path and filename of the static resource
      * @return string The URI
      */
-    public function getPublicStaticResourceUri($relativePathAndFilename)
+    public function getPublicStaticResourceUri($relativePathAndFilename): string
     {
         $relativePathAndFilename = $this->encodeRelativePathAndFilenameForUri($relativePathAndFilename);
         return 'https://storage.googleapis.com/' . $this->bucketName . '/' . $this->keyPrefix . $relativePathAndFilename;
@@ -368,7 +358,7 @@ class GcsTarget implements TargetInterface
      * @throws Exception
      * @throws \Exception
      */
-    public function publishResource(PersistentResource $resource, CollectionInterface $collection)
+    public function publishResource(PersistentResource $resource, CollectionInterface $collection): void
     {
         $storage = $collection->getStorage();
         if ($storage instanceof GcsStorage && $storage->getBucketName() === $this->bucketName) {
@@ -431,7 +421,7 @@ class GcsTarget implements TargetInterface
      * @param PersistentResource $resource The resource to unpublish
      * @throws \Exception
      */
-    public function unpublishResource(PersistentResource $resource)
+    public function unpublishResource(PersistentResource $resource): void
     {
         $collection = $this->resourceManager->getCollection($resource->getCollectionName());
         $storage = $collection->getStorage();
@@ -454,7 +444,7 @@ class GcsTarget implements TargetInterface
      * @param PersistentResource $resource PersistentResource object or the resource hash of the resource
      * @return string The URI
      */
-    public function getPublicPersistentResourceUri(PersistentResource $resource)
+    public function getPublicPersistentResourceUri(PersistentResource $resource): string
     {
         $relativePathAndFilename = $this->encodeRelativePathAndFilenameForUri($this->getRelativePublicationPathAndFilename($resource));
         if ($this->baseUri !== '') {

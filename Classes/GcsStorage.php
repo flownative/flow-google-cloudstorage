@@ -39,14 +39,14 @@ class GcsStorage implements WritableStorageInterface
      *
      * @var string
      */
-    protected $name;
+    protected $name = '';
 
     /**
      * Name of the bucket which should be used as a storage
      *
      * @var string
      */
-    protected $bucketName;
+    protected $bucketName = '';
 
     /**
      * A prefix to use for the key of bucket objects used by this storage
@@ -142,7 +142,7 @@ class GcsStorage implements WritableStorageInterface
      *
      * @return string
      */
-    public function getName()
+    public function getName(): string
     {
         return $this->name;
     }
@@ -177,8 +177,6 @@ class GcsStorage implements WritableStorageInterface
      * @param string $collectionName Name of the collection the new PersistentResource belongs to
      * @return PersistentResource A resource object representing the imported resource
      * @throws Exception
-     * @throws \Neos\Flow\Utility\Exception
-     * @throws FilesException
      */
     public function importResource($source, $collectionName): PersistentResource
     {
@@ -310,7 +308,7 @@ class GcsStorage implements WritableStorageInterface
      * @throws \Exception
      * @api
      */
-    public function deleteResource(PersistentResource $resource)
+    public function deleteResource(PersistentResource $resource): bool
     {
         try {
             $this->getCurrentBucket()->object($this->keyPrefix . $resource->getSha1())->delete();
@@ -391,11 +389,9 @@ class GcsStorage implements WritableStorageInterface
      * @return array<\Neos\Flow\ResourceManagement\Storage\StorageObject>
      * @api
      */
-    public function getObjectsByCollection(CollectionInterface $collection)
+    public function getObjectsByCollection(CollectionInterface $collection): array
     {
         $objects = [];
-        $that = $this;
-        $bucketName = $this->bucketName;
         $keyPrefix = $this->keyPrefix;
         $bucket = $this->getCurrentBucket();
 
