@@ -356,7 +356,7 @@ class GcsStorage implements WritableStorageInterface
     public function getStreamByResourcePath($relativePath)
     {
         try {
-            $stream = $this->getCurrentBucket()->object($this->bucketName, $this->keyPrefix . ltrim($relativePath, '/'))->downloadAsStream();
+            $stream = $this->getCurrentBucket()->object($this->keyPrefix . ltrim($relativePath, '/'))->downloadAsStream();
             return StreamWrapper::getResource($stream);
         } catch (\Exception $e) {
             if ($e instanceof NotFoundException) {
