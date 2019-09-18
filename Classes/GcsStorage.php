@@ -1,4 +1,6 @@
 <?php
+declare(strict_types=1);
+
 namespace Flownative\Google\CloudStorage;
 
 /*
@@ -16,6 +18,7 @@ use Google\Cloud\Storage\Bucket;
 use Google\Cloud\Storage\StorageClient;
 use GuzzleHttp\Psr7\StreamWrapper;
 use Neos\Flow\Annotations as Flow;
+use Neos\Flow\Log\Utility\LogEnvironment;
 use Neos\Flow\ResourceManagement\CollectionInterface;
 use Neos\Flow\ResourceManagement\PersistentResource;
 use Neos\Flow\ResourceManagement\ResourceManager;
@@ -23,13 +26,14 @@ use Neos\Flow\ResourceManagement\ResourceRepository;
 use Neos\Flow\ResourceManagement\Storage\StorageObject;
 use Neos\Flow\ResourceManagement\Storage\WritableStorageInterface;
 use Neos\Flow\Utility\Environment;
+use Neos\Utility\Exception\FilesException;
+use Psr\Log\LoggerInterface;
 
 /**
  * A resource storage based on Google Cloud Storage
  */
 class GcsStorage implements WritableStorageInterface
 {
-
     /**
      * Name which identifies this resource storage
      *
@@ -87,9 +91,9 @@ class GcsStorage implements WritableStorageInterface
 
     /**
      * @Flow\Inject
-     * @var \Neos\Flow\Log\SystemLoggerInterface
+     * @var LoggerInterface
      */
-    protected $systemLogger;
+    protected $logger;
 
     /**
      * Constructor
@@ -98,7 +102,7 @@ class GcsStorage implements WritableStorageInterface
      * @param array $options Options for this storage
      * @throws Exception
      */
-    public function __construct($name, array $options = array())
+    public function __construct(string $name, array $options = [])
     {
         $this->name = $name;
         $this->bucketName = $name;
@@ -148,7 +152,7 @@ class GcsStorage implements WritableStorageInterface
      *
      * @return string
      */
-    public function getBucketName()
+    public function getBucketName(): string
     {
         return $this->bucketName;
     }
@@ -158,7 +162,7 @@ class GcsStorage implements WritableStorageInterface
      *
      * @return string
      */
-    public function getKeyPrefix()
+    public function getKeyPrefix(): string
     {
         return $this->keyPrefix;
     }
@@ -169,13 +173,16 @@ class GcsStorage implements WritableStorageInterface
      * On a successful import this method returns a PersistentResource object representing the newly
      * imported persistent resource.
      *
-     * @param string | resource $source The URI (or local path and filename) or the PHP resource stream to import the resource from
+     * @param string|resource $source The URI (or local path and filename) or the PHP resource stream to import the resource from
      * @param string $collectionName Name of the collection the new PersistentResource belongs to
      * @return PersistentResource A resource object representing the imported resource
+     * @throws Exception
+     * @throws \Neos\Flow\Utility\Exception
+     * @throws FilesException
      */
     public function importResource($source, $collectionName): PersistentResource
     {
-        $temporaryTargetPathAndFilename = $this->environment->getPathToTemporaryDirectory() . uniqid('Flownative_Google_CloudStorage_');
+        $temporaryTargetPathAndFilename = $this->environment->getPathToTemporaryDirectory() . uniqid('Flownative_Google_CloudStorage_', true);
 
         if (is_resource($source)) {
             try {
@@ -197,7 +204,7 @@ class GcsStorage implements WritableStorageInterface
             $resource = $this->importTemporaryFile($temporaryTargetPathAndFilename, $collectionName);
         } catch (\Exception $e) {
             $message = sprintf('Google Cloud Storage: Could not import the temporary file from "%s" to to collection "%s": %s', $temporaryTargetPathAndFilename, $collectionName, $e->getMessage());
-            $this->systemLogger->log($message, \LOG_ERR);
+            $this->logger->error($message, LogEnvironment::fromMethodName(__METHOD__));
             throw new Exception($message, 1538034191);
         }
         unlink($temporaryTargetPathAndFilename);
@@ -255,7 +262,7 @@ class GcsStorage implements WritableStorageInterface
      * @throws \Exception
      * @api
      */
-    public function importUploadedResource(array $uploadInfo, $collectionName): PersistentResource
+    public function importUploadedResource(array $uploadInfo, string $collectionName): PersistentResource
     {
         $pathInfo = pathinfo($uploadInfo['name']);
         $originalFilename = $pathInfo['basename'];
@@ -265,7 +272,7 @@ class GcsStorage implements WritableStorageInterface
             throw new Exception(sprintf('The temporary file "%s" of the file upload does not exist (anymore).', $sourcePathAndFilename), 1446667850);
         }
 
-        $newSourcePathAndFilename = $this->environment->getPathToTemporaryDirectory() . 'Flownative_Google_CloudStorage_' . uniqid() . '.tmp';
+        $newSourcePathAndFilename = $this->environment->getPathToTemporaryDirectory() . 'Flownative_Google_CloudStorage_' . uniqid('', true) . '.tmp';
         if (move_uploaded_file($sourcePathAndFilename, $newSourcePathAndFilename) === false) {
             throw new Exception(sprintf('The uploaded file "%s" could not be moved to the temporary location "%s".', $sourcePathAndFilename, $newSourcePathAndFilename), 1446667851);
         }
@@ -281,14 +288,14 @@ class GcsStorage implements WritableStorageInterface
         $resource->setMd5($md5Hash);
 
         try {
-            $this->getCurrentBucket()->upload(fopen($newSourcePathAndFilename, 'r'), [
+            $this->getCurrentBucket()->upload(fopen($newSourcePathAndFilename, 'rb'), [
                 'name' => $this->keyPrefix . $sha1Hash,
                 'metadata' => [
                     'contentType' => $resource->getMediaType()
                 ]
             ]);
         } catch (\Exception $exception) {
-            $this->systemLogger->log(sprintf('Google Cloud Storage: Failed importing uploaded resource %s into bucket %s: %s', $this->keyPrefix . $sha1Hash, $this->getBucketName(), $exception->getMessage()), LOG_ERR);
+            $this->logger->error(sprintf('Google Cloud Storage: Failed importing uploaded resource %s into bucket %s: %s', $this->keyPrefix . $sha1Hash, $this->getBucketName(), $exception->getMessage()), LogEnvironment::fromMethodName(__METHOD__));
             throw $exception;
         }
 
@@ -332,7 +339,7 @@ class GcsStorage implements WritableStorageInterface
             return false;
         } catch (\Exception $e) {
             $message = sprintf('Google Cloud Storage: Could not retrieve stream for resource %s (/%s/%s%s). %s', $resource->getFilename(), $this->bucketName, $this->keyPrefix, $resource->getSha1(), $e->getMessage());
-            $this->systemLogger->log($message, \LOG_ERR);
+            $this->logger->error($message, LogEnvironment::fromMethodName(__METHOD__));
             throw new Exception($message, 1446667860);
         }
     }
@@ -356,7 +363,7 @@ class GcsStorage implements WritableStorageInterface
                 return false;
             }
             $message = sprintf('Google Cloud Storage: Could not retrieve stream for resource (gs://%s/%s). %s', $this->bucketName, $this->keyPrefix . ltrim($relativePath, '/'), $e->getMessage());
-            $this->systemLogger->log($message, \LOG_ERR);
+            $this->logger->error($message, LogEnvironment::fromMethodName(__METHOD__));
             throw new Exception($message, 1446667861);
         }
     }
@@ -369,7 +376,7 @@ class GcsStorage implements WritableStorageInterface
      */
     public function getObjects()
     {
-        $objects = array();
+        $objects = [];
         foreach ($this->resourceManager->getCollectionsByStorage($this) as $collection) {
             $objects = array_merge($objects, $this->getObjectsByCollection($collection));
         }
@@ -381,24 +388,23 @@ class GcsStorage implements WritableStorageInterface
      * Retrieve all Objects stored in this storage, filtered by the given collection name
      *
      * @param CollectionInterface $collection
-     * @internal param string $collectionName
      * @return array<\Neos\Flow\ResourceManagement\Storage\StorageObject>
      * @api
      */
     public function getObjectsByCollection(CollectionInterface $collection)
     {
-        $objects = array();
+        $objects = [];
         $that = $this;
         $bucketName = $this->bucketName;
         $keyPrefix = $this->keyPrefix;
         $bucket = $this->getCurrentBucket();
 
         foreach ($this->resourceRepository->findByCollectionName($collection->getName()) as $resource) {
-            /** @var \Neos\Flow\ResourceManagement\PersistentResource $resource */
+            /** @var PersistentResource $resource */
             $object = new StorageObject();
             $object->setFilename($resource->getFilename());
             $object->setSha1($resource->getSha1());
-            $object->setStream(function () use ($that, $bucketName, $keyPrefix, $bucket, $resource) {
+            $object->setStream(static function () use ($keyPrefix, $bucket, $resource) {
                 $stream = $bucket->object($keyPrefix . $resource->getSha1())->downloadAsStream();
                 return StreamWrapper::getResource($stream);
             });
@@ -416,7 +422,7 @@ class GcsStorage implements WritableStorageInterface
      * @return PersistentResource The imported resource
      * @throws \Exception
      */
-    protected function importTemporaryFile($temporaryPathAndFilename, $collectionName)
+    protected function importTemporaryFile(string $temporaryPathAndFilename, string $collectionName): PersistentResource
     {
         $sha1Hash = sha1_file($temporaryPathAndFilename);
         $md5Hash = md5_file($temporaryPathAndFilename);
@@ -430,7 +436,7 @@ class GcsStorage implements WritableStorageInterface
         $bucket = $this->getCurrentBucket();
         if (!$bucket->object($this->keyPrefix . $sha1Hash)->exists()) {
             try {
-                $bucket->upload(fopen($temporaryPathAndFilename, 'r'), [
+                $bucket->upload(fopen($temporaryPathAndFilename, 'rb'), [
                     'name' => $this->keyPrefix . $sha1Hash,
                     'metadata' => [
                         'contentType' => $resource->getMediaType()
@@ -439,17 +445,17 @@ class GcsStorage implements WritableStorageInterface
             } catch (\Exception $exception) {
                 if (!$bucket->exists()) {
                     $message = sprintf('Google Cloud Storage: Failed importing the temporary file into storage collection "%s" because the target bucket "%s" does not exist.', $collectionName, $bucket->name());
-                    $this->systemLogger->log($message, LOG_ERR);
-                    throw new \Exception($message);
+                    $this->logger->error($message, LogEnvironment::fromMethodName(__METHOD__));
+                    throw new \Exception($message, 1567591469);
                 }
 
-                $this->systemLogger->log(sprintf('Google Cloud Storage: Failed importing the temporary file into storage collection "%s": %s', $collectionName, $exception->getMessage()), LOG_ERR);
+                $this->logger->error(sprintf('Google Cloud Storage: Failed importing the temporary file into storage collection "%s": %s', $collectionName, $exception->getMessage()), LogEnvironment::fromMethodName(__METHOD__));
                 throw $exception;
             }
 
-            $this->systemLogger->log(sprintf('Google Cloud Storage: Successfully imported resource as object "%s" into bucket "%s" with MD5 hash "%s"', $sha1Hash, $this->bucketName, $resource->getMd5() ?: 'unknown'), LOG_INFO);
+            $this->logger->info(sprintf('Google Cloud Storage: Successfully imported resource as object "%s" into bucket "%s" with MD5 hash "%s"', $sha1Hash, $this->bucketName, $resource->getMd5() ?: 'unknown'), LogEnvironment::fromMethodName(__METHOD__));
         } else {
-            $this->systemLogger->log(sprintf('Google Cloud Storage: Did not import resource as object "%s" into bucket "%s" because that object already existed.', $sha1Hash, $this->bucketName), LOG_INFO);
+            $this->logger->info(sprintf('Google Cloud Storage: Did not import resource as object "%s" into bucket "%s" because that object already existed.', $sha1Hash, $this->bucketName), LogEnvironment::fromMethodName(__METHOD__));
         }
 
         return $resource;

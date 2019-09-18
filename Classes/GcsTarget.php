@@ -1,4 +1,6 @@
 <?php
+declare(strict_types=1);
+
 namespace Flownative\Google\CloudStorage;
 
 /*
@@ -14,12 +16,11 @@ namespace Flownative\Google\CloudStorage;
 use Flownative\Google\CloudStorage\Exception as CloudStorageException;
 use Google\Cloud\Core\Exception\GoogleException;
 use Google\Cloud\Core\Exception\NotFoundException;
-use Google\Cloud\Core\Exception\ServiceException;
 use Google\Cloud\Storage\Bucket;
 use Google\Cloud\Storage\StorageClient;
 use Google\Cloud\Storage\StorageObject;
 use Neos\Flow\Annotations as Flow;
-use Neos\Flow\Log\SystemLoggerInterface;
+use Neos\Flow\Log\Utility\LogEnvironment;
 use Neos\Flow\ResourceManagement\CollectionInterface;
 use Neos\Flow\ResourceManagement\Exception;
 use Neos\Flow\ResourceManagement\PersistentResource;
@@ -28,6 +29,7 @@ use Neos\Flow\ResourceManagement\ResourceManager;
 use Neos\Flow\ResourceManagement\ResourceMetaDataInterface;
 use Neos\Flow\ResourceManagement\Target\TargetInterface;
 use Neos\Flow\Utility\Environment;
+use Psr\Log\LoggerInterface;
 
 /**
  * A resource publishing target based on Amazon S3
@@ -77,19 +79,19 @@ class GcsTarget implements TargetInterface
      * @var string[]
      */
     protected $gzipCompressionMediaTypes = [
-      'text/plain',
-      'text/css',
-      'text/xml',
-      'text/mathml',
-      'text/javascript',
-      'application/x-javascript',
-      'application/xml',
-      'application/rss+xml',
-      'application/atom+xml',
-      'application/javascript',
-      'application/json',
-      'application/x-font-woff',
-      'image/svg+xml'
+        'text/plain',
+        'text/css',
+        'text/xml',
+        'text/mathml',
+        'text/javascript',
+        'application/x-javascript',
+        'application/xml',
+        'application/rss+xml',
+        'application/atom+xml',
+        'application/javascript',
+        'application/json',
+        'application/x-font-woff',
+        'image/svg+xml'
     ];
 
     /**
@@ -97,13 +99,13 @@ class GcsTarget implements TargetInterface
      *
      * @var array<\Neos\Flow\ResourceManagement\Storage\StorageInterface>
      */
-    protected $storages = array();
+    protected $storages = [];
 
     /**
      * @Flow\Inject
-     * @var SystemLoggerInterface
+     * @var LoggerInterface
      */
-    protected $systemLogger;
+    protected $logger;
 
     /**
      * @Flow\Inject
@@ -156,7 +158,7 @@ class GcsTarget implements TargetInterface
      * @param array $options Options for this target
      * @throws Exception
      */
-    public function __construct($name, array $options = array())
+    public function __construct($name, array $options = [])
     {
         $this->name = $name;
         foreach ($options as $key => $value) {
@@ -201,7 +203,7 @@ class GcsTarget implements TargetInterface
      * @return void
      * @throws CloudStorageException
      */
-    public function initializeObject()
+    public function initializeObject(): void
     {
         $this->storageClient = $this->storageFactory->create();
     }
@@ -221,7 +223,7 @@ class GcsTarget implements TargetInterface
      *
      * @return string
      */
-    public function getKeyPrefix()
+    public function getKeyPrefix(): string
     {
         return $this->keyPrefix;
     }
@@ -275,7 +277,7 @@ class GcsTarget implements TargetInterface
             }
         }
 
-        $this->systemLogger->log(sprintf('Removing %s obsolete objects from target bucket "%s".', count($obsoleteObjects), $this->bucketName), LOG_INFO);
+        $this->logger->info(sprintf('Removing %s obsolete objects from target bucket "%s".', count($obsoleteObjects), $this->bucketName), LogEnvironment::fromMethodName(__METHOD__));
         foreach (array_keys($obsoleteObjects) as $relativePathAndFilename) {
             try {
                 $targetBucket->object($this->keyPrefix . $relativePathAndFilename)->delete();
@@ -292,33 +294,33 @@ class GcsTarget implements TargetInterface
      * @param Bucket $targetBucket
      * @throws \Neos\Flow\Exception
      */
-    private function publishCollectionFromDifferentGoogleCloudStorage(CollectionInterface $collection, GcsStorage $storage, array $existingObjects, array &$obsoleteObjects, Bucket $targetBucket)
+    private function publishCollectionFromDifferentGoogleCloudStorage(CollectionInterface $collection, GcsStorage $storage, array $existingObjects, array &$obsoleteObjects, Bucket $targetBucket): void
     {
         $storageBucketName = $storage->getBucketName();
         $storageBucket = $this->storageClient->bucket($storageBucketName);
         $iteration = 0;
 
-        $this->systemLogger->log(sprintf('Found %s existing objects in target bucket "%s".', count($existingObjects), $this->bucketName), LOG_INFO);
+        $this->logger->info(sprintf('Found %s existing objects in target bucket "%s".', count($existingObjects), $this->bucketName), LogEnvironment::fromMethodName(__METHOD__));
 
         foreach ($collection->getObjects() as $object) {
             /** @var \Neos\Flow\ResourceManagement\Storage\StorageObject $object */
             $targetObjectName = $this->keyPrefix . $this->getRelativePublicationPathAndFilename($object);
             if (isset($existingObjects[$targetObjectName])) {
-                $this->systemLogger->log(sprintf('Skipping object "%s" because it already exists in bucket "%s"', $targetObjectName, $this->bucketName), LOG_DEBUG);
+                $this->logger->debug(sprintf('Skipping object "%s" because it already exists in bucket "%s"', $targetObjectName, $this->bucketName), LogEnvironment::fromMethodName(__METHOD__));
                 unset($obsoleteObjects[$targetObjectName]);
                 continue;
             }
 
-            if (in_array($object->getMediaType(), $this->gzipCompressionMediaTypes)) {
+            if (in_array($object->getMediaType(), $this->gzipCompressionMediaTypes, true)) {
                 try {
                     $this->publishFile($object->getStream(), $this->getRelativePublicationPathAndFilename($object), $object);
                 } catch (\Exception $e) {
                     $this->messageCollector->append(sprintf('Could not publish resource with SHA1 hash %s of collection %s from bucket %s to %s: %s', $object->getSha1(), $collection->getName(), $storageBucketName, $this->bucketName, $e->getMessage()));
                 }
-                $this->systemLogger->log(sprintf('Successfully copied resource as object "%s" (MD5: %s) from bucket "%s" to bucket "%s" (with GZIP compression)', $targetObjectName, $object->getMd5() ?: 'unknown', $storageBucketName, $this->bucketName), LOG_DEBUG);
+                $this->logger->debug(sprintf('Successfully copied resource as object "%s" (MD5: %s) from bucket "%s" to bucket "%s" (with GZIP compression)', $targetObjectName, $object->getMd5() ?: 'unknown', $storageBucketName, $this->bucketName), LogEnvironment::fromMethodName(__METHOD__));
             } else {
                 try {
-                    $this->systemLogger->log(sprintf('Copy object "%s" to bucket "%s"', $targetObjectName, $this->bucketName), LOG_DEBUG);
+                    $this->logger->debug(sprintf('Copy object "%s" to bucket "%s"', $targetObjectName, $this->bucketName), LogEnvironment::fromMethodName(__METHOD__));
                     $options = [
                         'name' => $targetObjectName,
                         'predefinedAcl' => 'publicRead',
@@ -336,13 +338,13 @@ class GcsTarget implements TargetInterface
                     }
                     continue;
                 }
-                $this->systemLogger->log(sprintf('Successfully copied resource as object "%s" (MD5: %s) from bucket "%s" to bucket "%s"', $targetObjectName, $object->getMd5() ?: 'unknown', $storageBucketName, $this->bucketName), LOG_DEBUG);
+                $this->logger->debug(sprintf('Successfully copied resource as object "%s" (MD5: %s) from bucket "%s" to bucket "%s"', $targetObjectName, $object->getMd5() ?: 'unknown', $storageBucketName, $this->bucketName), LogEnvironment::fromMethodName(__METHOD__));
             }
             unset($targetObjectName);
-            $iteration ++;
+            $iteration++;
         }
 
-        $this->systemLogger->log(sprintf('Published %s new objects to target bucket "%s".', $iteration, $this->bucketName), LOG_INFO);
+        $this->logger->info(sprintf('Published %s new objects to target bucket "%s".', $iteration, $this->bucketName), LogEnvironment::fromMethodName(__METHOD__));
     }
 
     /**
@@ -354,13 +356,13 @@ class GcsTarget implements TargetInterface
     public function getPublicStaticResourceUri($relativePathAndFilename)
     {
         $relativePathAndFilename = $this->encodeRelativePathAndFilenameForUri($relativePathAndFilename);
-        return 'https://storage.googleapis.com/' . $this->bucketName . '/'. $this->keyPrefix . $relativePathAndFilename;
+        return 'https://storage.googleapis.com/' . $this->bucketName . '/' . $this->keyPrefix . $relativePathAndFilename;
     }
 
     /**
      * Publishes the given persistent resource from the given storage
      *
-     * @param \Neos\Flow\ResourceManagement\PersistentResource $resource The resource to publish
+     * @param PersistentResource $resource The resource to publish
      * @param CollectionInterface $collection The collection the given resource belongs to
      * @return void
      * @throws Exception
@@ -378,7 +380,7 @@ class GcsTarget implements TargetInterface
                     $storageBucket->object($storage->getKeyPrefix() . $resource->getSha1())->update(['contentType' => $resource->getMediaType()]);
                     $updated = true;
                 } catch (GoogleException $exception) {
-                    $retries ++;
+                    $retries++;
                     if ($retries > 10) {
                         throw $exception;
                     }
@@ -388,7 +390,7 @@ class GcsTarget implements TargetInterface
             return;
         }
 
-        if ($storage instanceof GcsStorage && !in_array($resource->getMediaType(), $this->gzipCompressionMediaTypes)) {
+        if ($storage instanceof GcsStorage && !in_array($resource->getMediaType(), $this->gzipCompressionMediaTypes, true)) {
             if ($storage->getBucketName() === $this->bucketName && $storage->getKeyPrefix() === $this->keyPrefix) {
                 throw new Exception(sprintf('Could not publish resource with SHA1 hash %s of collection %s because the source and target bucket is the same, with identical key prefixes. Either choose a different bucket or at least key prefix for the target.', $resource->getSha1(), $collection->getName()), 1446721574);
             }
@@ -402,7 +404,6 @@ class GcsTarget implements TargetInterface
                     'contentType' => $resource->getMediaType(),
                     'cacheControl' => 'public, max-age=1209600',
                 ]);
-
             } catch (GoogleException $e) {
                 $googleError = json_decode($e->getMessage());
                 if ($googleError instanceof \stdClass && isset($googleError->error->message)) {
@@ -413,7 +414,7 @@ class GcsTarget implements TargetInterface
                 return;
             }
 
-            $this->systemLogger->log(sprintf('Successfully published resource as object "%s" (MD5: %s) by copying from bucket "%s" to bucket "%s"', $targetObjectName, $resource->getMd5() ?: 'unknown', $storage->getBucketName(), $this->bucketName), LOG_DEBUG);
+            $this->logger->debug(sprintf('Successfully published resource as object "%s" (MD5: %s) by copying from bucket "%s" to bucket "%s"', $targetObjectName, $resource->getMd5() ?: 'unknown', $storage->getBucketName(), $this->bucketName), LogEnvironment::fromMethodName(__METHOD__));
         } else {
             $sourceStream = $resource->getStream();
             if ($sourceStream === false) {
@@ -427,7 +428,7 @@ class GcsTarget implements TargetInterface
     /**
      * Unpublishes the given persistent resource
      *
-     * @param \Neos\Flow\ResourceManagement\PersistentResource $resource The resource to unpublish
+     * @param PersistentResource $resource The resource to unpublish
      * @throws \Exception
      */
     public function unpublishResource(PersistentResource $resource)
@@ -442,7 +443,7 @@ class GcsTarget implements TargetInterface
         try {
             $objectName = $this->keyPrefix . $this->getRelativePublicationPathAndFilename($resource);
             $this->getCurrentBucket()->object($objectName)->delete();
-            $this->systemLogger->log(sprintf('Successfully unpublished resource as object "%s" (MD5: %s) from bucket "%s"', $objectName, $resource->getMd5() ?: 'unknown', $this->bucketName), LOG_DEBUG);
+            $this->logger->debug(sprintf('Successfully unpublished resource as object "%s" (MD5: %s) from bucket "%s"', $objectName, $resource->getMd5() ?: 'unknown', $this->bucketName), LogEnvironment::fromMethodName(__METHOD__));
         } catch (NotFoundException $e) {
         }
     }
@@ -450,17 +451,17 @@ class GcsTarget implements TargetInterface
     /**
      * Returns the web accessible URI pointing to the specified persistent resource
      *
-     * @param \Neos\Flow\ResourceManagement\PersistentResource $resource PersistentResource object or the resource hash of the resource
+     * @param PersistentResource $resource PersistentResource object or the resource hash of the resource
      * @return string The URI
      */
     public function getPublicPersistentResourceUri(PersistentResource $resource)
     {
         $relativePathAndFilename = $this->encodeRelativePathAndFilenameForUri($this->getRelativePublicationPathAndFilename($resource));
-        if ($this->baseUri != '') {
+        if ($this->baseUri !== '') {
             return $this->baseUri . $relativePathAndFilename;
-        } else {
-            return 'https://storage.googleapis.com/' . $this->bucketName . '/'. $this->keyPrefix . $relativePathAndFilename;
         }
+
+        return 'https://storage.googleapis.com/' . $this->bucketName . '/' . $this->keyPrefix . $relativePathAndFilename;
     }
 
     /**
@@ -471,21 +472,21 @@ class GcsTarget implements TargetInterface
      * @param ResourceMetaDataInterface $metaData
      * @throws \Exception
      */
-    protected function publishFile($sourceStream, $relativeTargetPathAndFilename, ResourceMetaDataInterface $metaData)
+    protected function publishFile($sourceStream, string $relativeTargetPathAndFilename, ResourceMetaDataInterface $metaData): void
     {
         $objectName = $this->keyPrefix . $relativeTargetPathAndFilename;
-        $uploadParameters =  [
+        $uploadParameters = [
             'name' => $objectName,
             'predefinedAcl' => 'publicRead',
             'contentType' => $metaData->getMediaType(),
             'cacheControl' => 'public, max-age=1209600'
         ];
 
-        if (in_array($metaData->getMediaType(), $this->gzipCompressionMediaTypes)) {
+        if (in_array($metaData->getMediaType(), $this->gzipCompressionMediaTypes, true)) {
             try {
-                $temporaryTargetPathAndFilename = $this->environment->getPathToTemporaryDirectory() . uniqid('Flownative_Google_CloudStorage_');
+                $temporaryTargetPathAndFilename = $this->environment->getPathToTemporaryDirectory() . uniqid('Flownative_Google_CloudStorage_', true);
                 $temporaryTargetStream = gzopen($temporaryTargetPathAndFilename, 'wb' . $this->gzipCompressionLevel);
-                while(!feof($sourceStream)) {
+                while (!feof($sourceStream)) {
                     gzwrite($temporaryTargetStream, fread($sourceStream, 524288));
                 }
                 fclose($sourceStream);
@@ -494,14 +495,14 @@ class GcsTarget implements TargetInterface
                 $sourceStream = fopen($temporaryTargetPathAndFilename, 'rb');
                 $uploadParameters['metadata']['contentEncoding'] = 'gzip';
 
-                $this->systemLogger->log(sprintf('Converted resource data of object "%s" in bucket "%s" with MD5 hash "%s" to GZIP with level %s.', $objectName, $this->bucketName, $metaData->getMd5() ?: 'unknown', $this->gzipCompressionLevel), LOG_DEBUG);
+                $this->logger->debug(sprintf('Converted resource data of object "%s" in bucket "%s" with MD5 hash "%s" to GZIP with level %s.', $objectName, $this->bucketName, $metaData->getMd5() ?: 'unknown', $this->gzipCompressionLevel), LogEnvironment::fromMethodName(__METHOD__));
             } catch (\Exception $e) {
                 $this->messageCollector->append(sprintf('Failed publishing resource as object "%s" in bucket "%s" with MD5 hash "%s": %s', $objectName, $this->bucketName, $metaData->getMd5() ?: 'unknown', $e->getMessage()), LOG_WARNING, 1520257344878);
             }
         }
         try {
             $this->getCurrentBucket()->upload($sourceStream, $uploadParameters);
-            $this->systemLogger->log(sprintf('Successfully published resource as object "%s" in bucket "%s" with MD5 hash "%s"', $objectName, $this->bucketName, $metaData->getMd5() ?: 'unknown'), LOG_DEBUG);
+            $this->logger->debug(sprintf('Successfully published resource as object "%s" in bucket "%s" with MD5 hash "%s"', $objectName, $this->bucketName, $metaData->getMd5() ?: 'unknown'), LogEnvironment::fromMethodName(__METHOD__));
         } catch (\Exception $e) {
             $this->messageCollector->append(sprintf('Failed publishing resource as object "%s" in bucket "%s" with MD5 hash "%s": %s', $objectName, $this->bucketName, $metaData->getMd5() ?: 'unknown', $e->getMessage()), LOG_WARNING, 1506847965352);
         } finally {
@@ -509,7 +510,7 @@ class GcsTarget implements TargetInterface
                 fclose($sourceStream);
             }
             if (isset($temporaryTargetPathAndFilename) && file_exists($temporaryTargetPathAndFilename)) {
-                unlink ($temporaryTargetPathAndFilename);
+                unlink($temporaryTargetPathAndFilename);
             }
         }
     }
@@ -522,7 +523,7 @@ class GcsTarget implements TargetInterface
      * @param ResourceMetaDataInterface $object PersistentResource or Storage Object
      * @return string The relative path and filename, for example "c828d0f88ce197be1aff7cc2e5e86b1244241ac6/MyPicture.jpg"
      */
-    protected function getRelativePublicationPathAndFilename(ResourceMetaDataInterface $object)
+    protected function getRelativePublicationPathAndFilename(ResourceMetaDataInterface $object): string
     {
         if ($object->getRelativePublicationPath() !== '') {
             $pathAndFilename = $object->getRelativePublicationPath() . $object->getFilename();
@@ -538,7 +539,7 @@ class GcsTarget implements TargetInterface
      * @param string $relativePathAndFilename
      * @return string
      */
-    protected function encodeRelativePathAndFilenameForUri($relativePathAndFilename)
+    protected function encodeRelativePathAndFilenameForUri(string $relativePathAndFilename): string
     {
         return implode('/', array_map('rawurlencode', explode('/', $relativePathAndFilename)));
     }
@@ -546,7 +547,7 @@ class GcsTarget implements TargetInterface
     /**
      * @return Bucket
      */
-    protected function getCurrentBucket()
+    protected function getCurrentBucket(): Bucket
     {
         if ($this->currentBucket === null) {
             $this->currentBucket = $this->storageClient->bucket($this->bucketName);

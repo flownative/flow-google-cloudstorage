@@ -1,4 +1,6 @@
 <?php
+declare(strict_types=1);
+
 namespace Flownative\Google\CloudStorage;
 
 /*
@@ -11,12 +13,9 @@ namespace Flownative\Google\CloudStorage;
  * source code.
  */
 
-use Neos\Flow\Annotations as Flow;
-
 /**
  * Google Cloud Storage Exception
  */
 class Exception extends \Neos\Flow\Exception
 {
 }
-
