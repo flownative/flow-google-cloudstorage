@@ -45,7 +45,7 @@ class GcsTarget implements TargetInterface
     protected $name = '';
 
     /**
-     * Name of the S3 bucket which should be used for publication
+     * Name of the Google Cloud Storage bucket which should be used for publication
      *
      * @var string
      */
@@ -57,6 +57,11 @@ class GcsTarget implements TargetInterface
      * @var string
      */
     protected $keyPrefix = '';
+
+    /**
+     * @var string
+     */
+    protected $publicPersistentResourceUriPattern = 'https://storage.googleapis.com/{bucketName}/{keyPrefix}{sha1}';
 
     /**
      * CORS (Cross-Origin Resource Sharing) allowed origins for published content
@@ -156,6 +161,9 @@ class GcsTarget implements TargetInterface
                 break;
                 case 'keyPrefix':
                     $this->keyPrefix = ltrim($value, '/');
+                break;
+                case 'publicPersistentResourceUriPattern':
+                    $this->publicPersistentResourceUriPattern = $value;
                 break;
                 case 'corsAllowOrigin':
                     $this->corsAllowOrigin = $value;
@@ -446,6 +454,23 @@ class GcsTarget implements TargetInterface
      */
     public function getPublicPersistentResourceUri(PersistentResource $resource): string
     {
+        $uri = $this->publicPersistentResourceUriPattern;
+        $variables = [
+            '{baseUri}' => $this->baseUri,
+            '{bucketName}' => $this->bucketName,
+            '{keyPrefix}' => $this->keyPrefix,
+            '{sha1}' => $resource->getSha1(),
+            '{md5}' => $resource->getMd5(),
+            '{filename}' => $resource->getFilename(),
+            '{fileExtension}' => $resource->getFileExtension()
+        ];
+
+        foreach ($variables as $placeholder => $replacement) {
+            $uri = str_replace($placeholder, $replacement, $uri);
+        }
+
+        return $uri;
+
         $relativePathAndFilename = $this->encodeRelativePathAndFilenameForUri($this->getRelativePublicationPathAndFilename($resource));
         if ($this->baseUri !== '') {
             return $this->baseUri . $relativePathAndFilename;
