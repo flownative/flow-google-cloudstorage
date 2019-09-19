@@ -243,7 +243,13 @@ The possible placeholders are:
 - `{filename}` The resource's full filename, for example "logo.svg"
 - `{fileExtension}` The resource's file extension, for example "svg"
 
-The default pattern is: `https://storage.googleapis.com/{bucketName}/{keyPrefix}{sha1}`
+For legacy and convenience reasons, the default pattern depends on the setup being used:
+ 
+ - one-bucket setup: `https://storage.googleapis.com/{bucketName}/{keyPrefix}{sha1}`
+ - two-buckets setup: `https://storage.googleapis.com/{bucketName}/{keyPrefix}{sha1}/{filename}`
+
+The respective setup is auto-detected by the Target and the patterns set accordingly. You may, of course,
+override the patterns, by specifying the `pattern` setting as explained above.
 
 ## Publish Uris with Limited Lifetime
 

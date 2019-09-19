@@ -62,7 +62,17 @@ class GcsTarget implements TargetInterface
     /**
      * @var string
      */
-    protected $persistentResourceUriPattern = 'https://storage.googleapis.com/{bucketName}/{keyPrefix}{sha1}/{filename}';
+    protected $persistentResourceUriPattern = '';
+
+    /**
+     * @string
+     */
+    private const DEFAULT_PERSISTENT_RESOURCE_URI_PATTERN = '{baseUri}{bucketName}/{keyPrefix}{sha1}/{filename}';
+
+    /**
+     * @string
+     */
+    private const LEGACY_ONE_BUCKET_PERSISTENT_RESOURCE_URI_PATTERN = '{baseUri}{bucketName}/{keyPrefix}{sha1}';
 
     /**
      * @var bool
@@ -84,7 +94,7 @@ class GcsTarget implements TargetInterface
     /**
      * @var string
      */
-    protected $baseUri = '';
+    protected $baseUri = 'https://storage.googleapis.com/';
 
     /**
      * @var int
@@ -275,7 +285,7 @@ class GcsTarget implements TargetInterface
         $storage = $collection->getStorage();
         $targetBucket = $this->getCurrentBucket();
 
-        if ($storage instanceof GcsStorage && $storage->getBucketName() === $targetBucket->name()) {
+        if ($this->isOneBucketSetup($collection)) {
             // Nothing to do: the storage bucket is (or should be) publicly accessible
             return;
         }
@@ -419,7 +429,7 @@ class GcsTarget implements TargetInterface
         }
 
         if ($storage instanceof GcsStorage && !in_array($resource->getMediaType(), $this->gzipCompressionMediaTypes, true)) {
-            if ($storage->getBucketName() === $this->bucketName && $storage->getKeyPrefix() === $this->keyPrefix) {
+            if ($this->isOneBucketSetup($collection)) {
                 throw new Exception(sprintf('Could not publish resource with SHA1 hash %s of collection %s because the source and target bucket is the same, with identical key prefixes. Either choose a different bucket or at least key prefix for the target.', $resource->getSha1(), $collection->getName()), 1446721574);
             }
             $targetObjectName = $this->keyPrefix . $this->getRelativePublicationPathAndFilename($resource);
@@ -462,8 +472,7 @@ class GcsTarget implements TargetInterface
     public function unpublishResource(PersistentResource $resource): void
     {
         $collection = $this->resourceManager->getCollection($resource->getCollectionName());
-        $storage = $collection->getStorage();
-        if ($storage instanceof GcsStorage && $storage->getBucketName() === $this->bucketName) {
+        if ($this->isOneBucketSetup($collection)) {
             // Unpublish for same-bucket setups is a NOOP, because the storage object will already be deleted.
             return;
         }
@@ -485,6 +494,14 @@ class GcsTarget implements TargetInterface
     public function getPublicPersistentResourceUri(PersistentResource $resource): string
     {
         $customUri = $this->persistentResourceUriPattern;
+        if ($customUri === '') {
+            if ($this->isOneBucketSetup($this->resourceManager->getCollection($resource->getCollectionName()))) {
+                $customUri = self::LEGACY_ONE_BUCKET_PERSISTENT_RESOURCE_URI_PATTERN;
+            } else {
+                $customUri = self::DEFAULT_PERSISTENT_RESOURCE_URI_PATTERN;
+            }
+        }
+
         $variables = [
             '{baseUri}' => $this->baseUri,
             '{bucketName}' => $this->bucketName,
@@ -597,6 +614,22 @@ class GcsTarget implements TargetInterface
             $this->currentBucket = $this->storageClient->bucket($this->bucketName);
         }
         return $this->currentBucket;
+    }
+
+    /**
+     * Checks if the bucket and key prefix used as storage and target are the same
+     *
+     * @param CollectionInterface $collection
+     * @return bool
+     */
+    protected function isOneBucketSetup(CollectionInterface $collection): bool
+    {
+        $storage = $collection->getStorage();
+        return (
+            $storage instanceof GcsStorage &&
+            $storage->getBucketName() === $this->bucketName &&
+            $storage->getKeyPrefix() === $this->keyPrefix
+        );
     }
 }
 
