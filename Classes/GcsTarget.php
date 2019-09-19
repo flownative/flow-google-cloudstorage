@@ -209,7 +209,9 @@ class GcsTarget implements TargetInterface
                     $this->corsAllowOrigin = $value;
                 break;
                 case 'baseUri':
-                    $this->baseUri = $value;
+                    if (!empty($value)) {
+                        $this->baseUri = $value;
+                    }
                 break;
                 case 'gzipCompressionLevel':
                     $this->gzipCompressionLevel = (int)$value;
