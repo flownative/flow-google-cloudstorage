@@ -62,17 +62,17 @@ class GcsTarget implements TargetInterface
     /**
      * @var string
      */
-    protected $publicPersistentResourceUriPattern = 'https://storage.googleapis.com/{bucketName}/{keyPrefix}{sha1}';
+    protected $persistentResourceUriPattern = 'https://storage.googleapis.com/{bucketName}/{keyPrefix}{sha1}/{filename}';
 
     /**
      * @var bool
      */
-    protected $publicPersistentResourceUriEnableSigning = false;
+    protected $persistentResourceUriEnableSigning = false;
 
     /**
      * @var int
      */
-    protected $publicPersistentResourceUriSignatureLifetime = 600;
+    protected $persistentResourceUriSignatureLifetime = 600;
 
     /**
      * CORS (Cross-Origin Resource Sharing) allowed origins for published content
@@ -180,13 +180,13 @@ class GcsTarget implements TargetInterface
                     foreach ($value as $uriOptionKey => $uriOptionValue) {
                         switch ($uriOptionKey) {
                             case 'pattern':
-                                $this->publicPersistentResourceUriPattern = (string)$uriOptionValue;
+                                $this->persistentResourceUriPattern = (string)$uriOptionValue;
                             break;
                             case 'enableSigning':
-                                $this->publicPersistentResourceUriEnableSigning = (bool)$uriOptionValue;
+                                $this->persistentResourceUriEnableSigning = (bool)$uriOptionValue;
                             break;
                             case 'signatureLifetime':
-                                $this->publicPersistentResourceUriSignatureLifetime = (int)$uriOptionValue;
+                                $this->persistentResourceUriSignatureLifetime = (int)$uriOptionValue;
                             break;
                             default:
                                 if ($value !== null) {
@@ -484,7 +484,7 @@ class GcsTarget implements TargetInterface
      */
     public function getPublicPersistentResourceUri(PersistentResource $resource): string
     {
-        $customUri = $this->publicPersistentResourceUriPattern;
+        $customUri = $this->persistentResourceUriPattern;
         $variables = [
             '{baseUri}' => $this->baseUri,
             '{bucketName}' => $this->bucketName,
@@ -499,9 +499,9 @@ class GcsTarget implements TargetInterface
             $customUri = str_replace($placeholder, $replacement, $customUri);
         }
 
-        if ($this->publicPersistentResourceUriEnableSigning) {
+        if ($this->persistentResourceUriEnableSigning) {
             $objectName = $this->keyPrefix . $resource->getSha1();
-            $signedStandardUri = new Uri($this->getCurrentBucket()->object($objectName)->signedUrl(time() + $this->publicPersistentResourceUriSignatureLifetime, ['method' => 'GET']));
+            $signedStandardUri = new Uri($this->getCurrentBucket()->object($objectName)->signedUrl(time() + $this->persistentResourceUriSignatureLifetime, ['method' => 'GET']));
             $customUri .= '?' . $signedStandardUri->getQuery();
         }
 
