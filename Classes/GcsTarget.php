@@ -67,12 +67,7 @@ class GcsTarget implements TargetInterface
     /**
      * @string
      */
-    private const DEFAULT_PERSISTENT_RESOURCE_URI_PATTERN = '{baseUri}{bucketName}/{keyPrefix}{sha1}/{filename}';
-
-    /**
-     * @string
-     */
-    private const LEGACY_ONE_BUCKET_PERSISTENT_RESOURCE_URI_PATTERN = '{baseUri}{bucketName}/{keyPrefix}{sha1}';
+    private const DEFAULT_PERSISTENT_RESOURCE_URI_PATTERN = '{baseUri}{keyPrefix}{sha1}/{filename}';
 
     /**
      * @var bool
@@ -94,7 +89,7 @@ class GcsTarget implements TargetInterface
     /**
      * @var string
      */
-    protected $baseUri = 'https://storage.googleapis.com/';
+    protected $baseUri = '';
 
     /**
      * @var int
@@ -495,17 +490,19 @@ class GcsTarget implements TargetInterface
      */
     public function getPublicPersistentResourceUri(PersistentResource $resource): string
     {
+        $baseUri = $this->baseUri;
         $customUri = $this->persistentResourceUriPattern;
-        if ($customUri === '') {
-            if ($this->isOneBucketSetup($this->resourceManager->getCollection($resource->getCollectionName()))) {
-                $customUri = self::LEGACY_ONE_BUCKET_PERSISTENT_RESOURCE_URI_PATTERN;
+        if (empty($customUri)) {
+            if (empty($baseUri)) {
+                $baseUri = 'https://storage.googleapis.com/';
+                $customUri = '{baseUri}{bucketName}/{keyPrefix}{sha1}/{filename}';
             } else {
                 $customUri = self::DEFAULT_PERSISTENT_RESOURCE_URI_PATTERN;
             }
         }
 
         $variables = [
-            '{baseUri}' => $this->baseUri,
+            '{baseUri}' => $baseUri,
             '{bucketName}' => $this->bucketName,
             '{keyPrefix}' => $this->keyPrefix,
             '{sha1}' => $resource->getSha1(),
