@@ -251,7 +251,7 @@ You can protect access to your resources by creating a private Google Cloud Stor
 can declare a *bucket policy* which grants access only to a service key owned by your application.
 
 Let's say you generate invoices as PDF files and want to store them securely in a private bucket. At some
-point you will want allow authorized customers to download an invoice. The easiest way to implement that, is
+point you will want to allow authorized customers downloading an invoice. The easiest way to implement that, is
 to generate a special signed link, which allows access to a given resource for a limited time.
 
 The Google Cloud Storage Target can take care of signing links to persistent resources. Just enable signing
@@ -269,6 +269,12 @@ generated link can download the given protected resource wile the link is valid.
               pattern: '{baseUri}{sha1}/{filename}'
               enableSigning: true
               signatureLifetime: 600
+```
+
+With this configuration, generated links will look like the following:
+
+```
+https://assets.flownative.com/d19409d1315d0cf268c191f33d5a3c6cde29f903/photo.jpg?GoogleAccessId=robert@my-project.iam.gserviceaccount.com&Expires=1568877386&Signature=VCyYVsyxScRf6VkQ88g16haWKewlZ4iVYOAio9HcGjT8VmhwNh8OG1zYSE%2BoC8TDpLNEPrmbSkRY92Tj4pntfLP5psV4Q%2BBakmh66crQHidb0%2BW2wkKI2GKm9CX%2FCF6kRdtObdYF1oxj1c6Fz3F31txylCilPMjL%2Fq0%2BWtvwk1hczv7vTccHuOgP5ymAUV5Z%2FlKSn7lQMb9BduUrCartzJZOUbUrrdlUHDle80cziWrxoDJSDy3dAM89Dhe9g5rmJ6xsN4YF%2BZSo1xzCW2NMdghSzlz5yBhZAIf6nhO9VjVzuuF1X70X00pNU19FQJiYPxC3VD7UhggZ2%2B3KWoAsRg%3D%3D
 ```
 
 ## GZIP Compression
