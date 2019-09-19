@@ -20,6 +20,7 @@ use Google\Cloud\Storage\Bucket;
 use Google\Cloud\Storage\StorageClient;
 use Google\Cloud\Storage\StorageObject;
 use Neos\Flow\Annotations as Flow;
+use Neos\Flow\Http\Uri;
 use Neos\Flow\Log\Utility\LogEnvironment;
 use Neos\Flow\ResourceManagement\CollectionInterface;
 use Neos\Flow\ResourceManagement\Exception;
@@ -32,7 +33,7 @@ use Neos\Flow\Utility\Environment;
 use Psr\Log\LoggerInterface;
 
 /**
- * A resource publishing target based on Amazon S3
+ * A resource publishing target based on Google Cloud Storage
  */
 class GcsTarget implements TargetInterface
 {
@@ -42,14 +43,14 @@ class GcsTarget implements TargetInterface
      *
      * @var string
      */
-    protected $name;
+    protected $name = '';
 
     /**
-     * Name of the S3 bucket which should be used for publication
+     * Name of the Google Cloud Storage bucket which should be used for publication
      *
      * @var string
      */
-    protected $bucketName;
+    protected $bucketName = '';
 
     /**
      * A prefix to use for the key of bucket objects used by this storage
@@ -57,6 +58,26 @@ class GcsTarget implements TargetInterface
      * @var string
      */
     protected $keyPrefix = '';
+
+    /**
+     * @var string
+     */
+    protected $persistentResourceUriPattern = '';
+
+    /**
+     * @string
+     */
+    private const DEFAULT_PERSISTENT_RESOURCE_URI_PATTERN = '{baseUri}{keyPrefix}{sha1}/{filename}';
+
+    /**
+     * @var bool
+     */
+    protected $persistentResourceUriEnableSigning = false;
+
+    /**
+     * @var int
+     */
+    protected $persistentResourceUriSignatureLifetime = 600;
 
     /**
      * CORS (Cross-Origin Resource Sharing) allowed origins for published content
@@ -68,7 +89,7 @@ class GcsTarget implements TargetInterface
     /**
      * @var string
      */
-    protected $baseUri;
+    protected $baseUri = '';
 
     /**
      * @var int
@@ -93,13 +114,6 @@ class GcsTarget implements TargetInterface
         'application/x-font-woff',
         'image/svg+xml'
     ];
-
-    /**
-     * Internal cache for known storages, indexed by storage name
-     *
-     * @var array<\Neos\Flow\ResourceManagement\Storage\StorageInterface>
-     */
-    protected $storages = [];
 
     /**
      * @Flow\Inject
@@ -147,11 +161,6 @@ class GcsTarget implements TargetInterface
     protected $existingObjectsInfo;
 
     /**
-     * @var bool
-     */
-    protected $bucketIsPublic;
-
-    /**
      * Constructor
      *
      * @param string $name Name of this target instance, according to the resource settings
@@ -169,14 +178,38 @@ class GcsTarget implements TargetInterface
                 case 'keyPrefix':
                     $this->keyPrefix = ltrim($value, '/');
                 break;
+                case 'persistentResourceUris':
+                    if (!is_array($value)) {
+                        throw new Exception(sprintf('The option "%s" which was specified in the configuration of the "%s" resource GcsTarget is not a valid array. Please check your settings.', $key, $name), 1568875196);
+                    }
+                    foreach ($value as $uriOptionKey => $uriOptionValue) {
+                        switch ($uriOptionKey) {
+                            case 'pattern':
+                                $this->persistentResourceUriPattern = (string)$uriOptionValue;
+                            break;
+                            case 'enableSigning':
+                                $this->persistentResourceUriEnableSigning = (bool)$uriOptionValue;
+                            break;
+                            case 'signatureLifetime':
+                                $this->persistentResourceUriSignatureLifetime = (int)$uriOptionValue;
+                            break;
+                            default:
+                                if ($value !== null) {
+                                    throw new Exception(sprintf('An unknown option "%s" was specified in the configuration of the "%s" resource GcsTarget. Please check your settings.', $uriOptionKey, $name), 1568876031);
+                                }
+                        }
+                    }
+                break;
                 case 'corsAllowOrigin':
                     $this->corsAllowOrigin = $value;
                 break;
                 case 'baseUri':
-                    $this->baseUri = $value;
+                    if (!empty($value)) {
+                        $this->baseUri = $value;
+                    }
                 break;
                 case 'gzipCompressionLevel':
-                    $this->gzipCompressionLevel = intval($value);
+                    $this->gzipCompressionLevel = (int)$value;
                 break;
                 case 'gzipCompressionMediaTypes':
                     if (!is_array($value)) {
@@ -213,13 +246,13 @@ class GcsTarget implements TargetInterface
      *
      * @return string The target instance name
      */
-    public function getName()
+    public function getName(): string
     {
         return $this->name;
     }
 
     /**
-     * Returns the S3 object key prefix
+     * Returns the object key prefix
      *
      * @return string
      */
@@ -240,15 +273,16 @@ class GcsTarget implements TargetInterface
      * Publishes the whole collection to this target
      *
      * @param CollectionInterface $collection The collection to publish
+     * @return void
      * @throws \Exception
      * @throws \Neos\Flow\Exception
      */
-    public function publishCollection(CollectionInterface $collection)
+    public function publishCollection(CollectionInterface $collection): void
     {
         $storage = $collection->getStorage();
         $targetBucket = $this->getCurrentBucket();
 
-        if ($storage instanceof GcsStorage && $storage->getBucketName() === $targetBucket->name()) {
+        if ($this->isOneBucketSetup($collection)) {
             // Nothing to do: the storage bucket is (or should be) publicly accessible
             return;
         }
@@ -292,6 +326,7 @@ class GcsTarget implements TargetInterface
      * @param array $existingObjects
      * @param array $obsoleteObjects
      * @param Bucket $targetBucket
+     * @return void
      * @throws \Neos\Flow\Exception
      */
     private function publishCollectionFromDifferentGoogleCloudStorage(CollectionInterface $collection, GcsStorage $storage, array $existingObjects, array &$obsoleteObjects, Bucket $targetBucket): void
@@ -353,7 +388,7 @@ class GcsTarget implements TargetInterface
      * @param string $relativePathAndFilename Relative path and filename of the static resource
      * @return string The URI
      */
-    public function getPublicStaticResourceUri($relativePathAndFilename)
+    public function getPublicStaticResourceUri($relativePathAndFilename): string
     {
         $relativePathAndFilename = $this->encodeRelativePathAndFilenameForUri($relativePathAndFilename);
         return 'https://storage.googleapis.com/' . $this->bucketName . '/' . $this->keyPrefix . $relativePathAndFilename;
@@ -368,7 +403,7 @@ class GcsTarget implements TargetInterface
      * @throws Exception
      * @throws \Exception
      */
-    public function publishResource(PersistentResource $resource, CollectionInterface $collection)
+    public function publishResource(PersistentResource $resource, CollectionInterface $collection): void
     {
         $storage = $collection->getStorage();
         if ($storage instanceof GcsStorage && $storage->getBucketName() === $this->bucketName) {
@@ -391,7 +426,7 @@ class GcsTarget implements TargetInterface
         }
 
         if ($storage instanceof GcsStorage && !in_array($resource->getMediaType(), $this->gzipCompressionMediaTypes, true)) {
-            if ($storage->getBucketName() === $this->bucketName && $storage->getKeyPrefix() === $this->keyPrefix) {
+            if ($this->isOneBucketSetup($collection)) {
                 throw new Exception(sprintf('Could not publish resource with SHA1 hash %s of collection %s because the source and target bucket is the same, with identical key prefixes. Either choose a different bucket or at least key prefix for the target.', $resource->getSha1(), $collection->getName()), 1446721574);
             }
             $targetObjectName = $this->keyPrefix . $this->getRelativePublicationPathAndFilename($resource);
@@ -431,11 +466,10 @@ class GcsTarget implements TargetInterface
      * @param PersistentResource $resource The resource to unpublish
      * @throws \Exception
      */
-    public function unpublishResource(PersistentResource $resource)
+    public function unpublishResource(PersistentResource $resource): void
     {
         $collection = $this->resourceManager->getCollection($resource->getCollectionName());
-        $storage = $collection->getStorage();
-        if ($storage instanceof GcsStorage && $storage->getBucketName() === $this->bucketName) {
+        if ($this->isOneBucketSetup($collection)) {
             // Unpublish for same-bucket setups is a NOOP, because the storage object will already be deleted.
             return;
         }
@@ -454,14 +488,40 @@ class GcsTarget implements TargetInterface
      * @param PersistentResource $resource PersistentResource object or the resource hash of the resource
      * @return string The URI
      */
-    public function getPublicPersistentResourceUri(PersistentResource $resource)
+    public function getPublicPersistentResourceUri(PersistentResource $resource): string
     {
-        $relativePathAndFilename = $this->encodeRelativePathAndFilenameForUri($this->getRelativePublicationPathAndFilename($resource));
-        if ($this->baseUri !== '') {
-            return $this->baseUri . $relativePathAndFilename;
+        $baseUri = $this->baseUri;
+        $customUri = $this->persistentResourceUriPattern;
+        if (empty($customUri)) {
+            if (empty($baseUri)) {
+                $baseUri = 'https://storage.googleapis.com/';
+                $customUri = '{baseUri}{bucketName}/{keyPrefix}{sha1}/{filename}';
+            } else {
+                $customUri = self::DEFAULT_PERSISTENT_RESOURCE_URI_PATTERN;
+            }
         }
 
-        return 'https://storage.googleapis.com/' . $this->bucketName . '/' . $this->keyPrefix . $relativePathAndFilename;
+        $variables = [
+            '{baseUri}' => $baseUri,
+            '{bucketName}' => $this->bucketName,
+            '{keyPrefix}' => $this->keyPrefix,
+            '{sha1}' => $resource->getSha1(),
+            '{md5}' => $resource->getMd5(),
+            '{filename}' => $resource->getFilename(),
+            '{fileExtension}' => $resource->getFileExtension()
+        ];
+
+        foreach ($variables as $placeholder => $replacement) {
+            $customUri = str_replace($placeholder, $replacement, $customUri);
+        }
+
+        if ($this->persistentResourceUriEnableSigning) {
+            $objectName = $this->keyPrefix . $resource->getSha1();
+            $signedStandardUri = new Uri($this->getCurrentBucket()->object($objectName)->signedUrl(time() + $this->persistentResourceUriSignatureLifetime, ['method' => 'GET']));
+            $customUri .= '?' . $signedStandardUri->getQuery();
+        }
+
+        return $customUri;
     }
 
     /**
@@ -553,6 +613,22 @@ class GcsTarget implements TargetInterface
             $this->currentBucket = $this->storageClient->bucket($this->bucketName);
         }
         return $this->currentBucket;
+    }
+
+    /**
+     * Checks if the bucket and key prefix used as storage and target are the same
+     *
+     * @param CollectionInterface $collection
+     * @return bool
+     */
+    protected function isOneBucketSetup(CollectionInterface $collection): bool
+    {
+        $storage = $collection->getStorage();
+        return (
+            $storage instanceof GcsStorage &&
+            $storage->getBucketName() === $this->bucketName &&
+            $storage->getKeyPrefix() === $this->keyPrefix
+        );
     }
 }
 

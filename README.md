@@ -131,13 +131,7 @@ Neos:
             baseUri: 'http://storage.googleapis.com/target.example.net/'
 ```
 
-Some notes regarding the configuration:
-
-You should create separate buckets for storage and target respectively in order to not mix up both structures.
-In a two-bucket setup, resources will be duplicated (the original is stored in the "storage" bucket and then
-copied to the "target" bucket). This is necessary in order to provide a meaningful filename to the web user.
-It is possible to use only one bucket as storage and target, but for that case you need to install a reverse
-proxy with path rewriting rules in order to simulate these filenames.
+Some words regarding the configuration options:
 
 The `keyPrefix` option allows you to share one bucket across multiple websites or applications. All object keys
 will be prefixed by the given string.
@@ -185,6 +179,108 @@ Clear caches and you're done.
 
 ```bash
 $ ./flow flow:cache:flush
+```
+
+## One- or Two-Bucket Setup
+
+You can either create separate buckets for storage and target respectively or use the same bucket as storage
+and target.
+
+### One Bucket
+
+In a one-bucket setup, the same bucket will be used as storage and target. All resources are publicly accessible,
+so Flow can render a URL pointing to a resource right after it was uploaded.
+
+This setup is fast and saves storage space, because resources do not have to be copied and are only stored once.
+On the backside, the URLs are kind of ugly, because they only consist of a domain and the resource's SHA1:
+
+```
+https://storage.googleapis.com/bucket.example.com/a865defc2a48f060f15c3f4f21f2f1e78f154789
+``` 
+
+### Two Buckets
+
+In a two-bucket setup, resources will be duplicated: the original is stored in the "storage" bucket and then
+copied to the "target" bucket. Each time a new resource is created or imported, it will be stored in the
+storage bucket and then automatically published (i.e. copied) into the target bucket.
+
+You may choose this setup in order to have human- and SEO-friendly URLs pointing to your resources, because
+objects copied into the target bucket can have a more telling name which includes the original filename of
+the resource (see for the `publicPersistentResourceUris` options further below).
+
+## Customizing the Public URLs
+
+The Google Cloud Storage Target supports a way to customize the URLs which are presented to the user. Even
+though the paths and filenames used for objects in the buckets is rather fixed (see above for the `baseUri` and
+`keyPrefix` options), you may want to use a reverse proxy or content delivery network to deliver resources
+stored in your target bucket. In that case, you can tell the Target to render URLs according to your own rules.
+It is your responsibility then to make sure that these URLs actually work.
+
+Let's assume that we have set up a webserver acting as a reverse proxy. Requests to `assets.flownative.com` are
+re-written so that using a URI like `https://assets.flownative.com/a817…cb1/logo.svg` will actually deliver
+a file stored in the Storage bucket using the given SHA1.
+
+You can tell the Target to render URIs like these by defining a pattern with placeholders:
+
+```yaml
+      targets:
+        googlePersistentResourcesTarget:
+          target: 'Flownative\Google\CloudStorage\GcsTarget'
+          targetOptions:
+            bucket: 'flownativecom.flownative.cloud'
+            baseUri: 'https://assets.flownative.com/'
+            persistentResourceUris:
+              pattern: '{baseUri}{sha1}/{filename}'
+```
+
+The possible placeholders are:
+
+- `{baseUri}` The base URI as defined in the target options
+- `{bucketName}` The target's bucket name
+- `{keyPrefix}` The target's configured key prefix
+- `{sha1}` The resource's SHA1
+- `{md5}` The resource's MD5 🙄
+- `{filename}` The resource's full filename, for example "logo.svg"
+- `{fileExtension}` The resource's file extension, for example "svg"
+
+For legacy and convenience reasons, the default pattern depends on the setup being used:
+ 
+ - no pattern and no baseUri set: `https://storage.googleapis.com/{bucketName}/{keyPrefix}{sha1}`
+ - no pattern set: `{baseUri}/{keyPrefix}{sha1}/{filename}`
+
+The respective setup is auto-detected by the Target and the patterns set accordingly. You may, of course,
+override the patterns, by specifying the `pattern` setting as explained above.
+
+## Publish Uris with Limited Lifetime
+
+You can protect access to your resources by creating a private Google Cloud Storage bucket. For example, you
+can declare a *bucket policy* which grants access only to a service key owned by your application.
+
+Let's say you generate invoices as PDF files and want to store them securely in a private bucket. At some
+point you will want to allow authorized customers downloading an invoice. The easiest way to implement that, is
+to generate a special signed link, which allows access to a given resource for a limited time.
+
+The Google Cloud Storage Target can take care of signing links to persistent resources. Just enable signing
+and specify a signature lifetime (in seconds) like in the following example. Be aware though, that anyone with such a
+generated link can download the given protected resource wile the link is valid. 
+
+```yaml
+      targets:
+        googlePersistentResourcesTarget:
+          target: 'Flownative\Google\CloudStorage\GcsTarget'
+          targetOptions:
+            bucket: 'flownativecom.flownative.cloud'
+            baseUri: 'https://assets.flownative.com/'
+            persistentResourceUris:
+              pattern: '{baseUri}{sha1}/{filename}'
+              enableSigning: true
+              signatureLifetime: 600
+```
+
+With this configuration, generated links will look like the following:
+
+```
+https://assets.flownative.com/d19409d1315d0cf268c191f33d5a3c6cde29f903/photo.jpg?GoogleAccessId=robert@my-project.iam.gserviceaccount.com&Expires=1568877386&Signature=VCyYVsyxScRf6VkQ88g16haWKewlZ4iVYOAio9HcGjT8VmhwNh8OG1zYSE%2BoC8TDpLNEPrmbSkRY92Tj4pntfLP5psV4Q%2BBakmh66crQHidb0%2BW2wkKI2GKm9CX%2FCF6kRdtObdYF1oxj1c6Fz3F31txylCilPMjL%2Fq0%2BWtvwk1hczv7vTccHuOgP5ymAUV5Z%2FlKSn7lQMb9BduUrCartzJZOUbUrrdlUHDle80cziWrxoDJSDy3dAM89Dhe9g5rmJ6xsN4YF%2BZSo1xzCW2NMdghSzlz5yBhZAIf6nhO9VjVzuuF1X70X00pNU19FQJiYPxC3VD7UhggZ2%2B3KWoAsRg%3D%3D
 ```
 
 ## GZIP Compression
