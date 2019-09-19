@@ -206,7 +206,7 @@ storage bucket and then automatically published (i.e. copied) into the target bu
 
 You may choose this setup in order to have human- and SEO-friendly URLs pointing to your resources, because
 objects copied into the target bucket can have a more telling name which includes the original filename of
-the resource (see for the `publicPersistentResourceUriPattern` option further below).
+the resource (see for the `publicPersistentResourceUris` options further below).
 
 ## Customizing the Public URLs
 
@@ -229,7 +229,8 @@ You can tell the Target to render URIs like these by defining a pattern with pla
           targetOptions:
             bucket: 'flownativecom.flownative.cloud'
             baseUri: 'https://assets.flownative.com/'
-            publicPersistentResourceUriPattern: '{baseUri}{sha1}/{filename}'
+            persistentResourceUris:
+              pattern: '{baseUri}{sha1}/{filename}'
 ```
 
 The possible placeholders are:
@@ -243,6 +244,32 @@ The possible placeholders are:
 - `{fileExtension}` The resource's file extension, for example "svg"
 
 The default pattern is: `https://storage.googleapis.com/{bucketName}/{keyPrefix}{sha1}`
+
+## Publish Uris with Limited Lifetime
+
+You can protect access to your resources by creating a private Google Cloud Storage bucket. For example, you
+can declare a *bucket policy* which grants access only to a service key owned by your application.
+
+Let's say you generate invoices as PDF files and want to store them securely in a private bucket. At some
+point you will want allow authorized customers to download an invoice. The easiest way to implement that, is
+to generate a special signed link, which allows access to a given resource for a limited time.
+
+The Google Cloud Storage Target can take care of signing links to persistent resources. Just enable signing
+and specify a signature lifetime (in seconds) like in the following example. Be aware though, that anyone with such a
+generated link can download the given protected resource wile the link is valid. 
+
+```yaml
+      targets:
+        googlePersistentResourcesTarget:
+          target: 'Flownative\Google\CloudStorage\GcsTarget'
+          targetOptions:
+            bucket: 'flownativecom.flownative.cloud'
+            baseUri: 'https://assets.flownative.com/'
+            persistentResourceUris:
+              pattern: '{baseUri}{sha1}/{filename}'
+              enableSigning: true
+              signatureLifetime: 600
+```
 
 ## GZIP Compression
 

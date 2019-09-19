@@ -20,6 +20,7 @@ use Google\Cloud\Storage\Bucket;
 use Google\Cloud\Storage\StorageClient;
 use Google\Cloud\Storage\StorageObject;
 use Neos\Flow\Annotations as Flow;
+use Neos\Flow\Http\Uri;
 use Neos\Flow\Log\Utility\LogEnvironment;
 use Neos\Flow\ResourceManagement\CollectionInterface;
 use Neos\Flow\ResourceManagement\Exception;
@@ -62,6 +63,16 @@ class GcsTarget implements TargetInterface
      * @var string
      */
     protected $publicPersistentResourceUriPattern = 'https://storage.googleapis.com/{bucketName}/{keyPrefix}{sha1}';
+
+    /**
+     * @var bool
+     */
+    protected $publicPersistentResourceUriEnableSigning = false;
+
+    /**
+     * @var int
+     */
+    protected $publicPersistentResourceUriSignatureLifetime = 600;
 
     /**
      * CORS (Cross-Origin Resource Sharing) allowed origins for published content
@@ -162,8 +173,27 @@ class GcsTarget implements TargetInterface
                 case 'keyPrefix':
                     $this->keyPrefix = ltrim($value, '/');
                 break;
-                case 'publicPersistentResourceUriPattern':
-                    $this->publicPersistentResourceUriPattern = $value;
+                case 'persistentResourceUris':
+                    if (!is_array($value)) {
+                        throw new Exception(sprintf('The option "%s" which was specified in the configuration of the "%s" resource GcsTarget is not a valid array. Please check your settings.', $key, $name), 1568875196);
+                    }
+                    foreach ($value as $uriOptionKey => $uriOptionValue) {
+                        switch ($uriOptionKey) {
+                            case 'pattern':
+                                $this->publicPersistentResourceUriPattern = (string)$uriOptionValue;
+                            break;
+                            case 'enableSigning':
+                                $this->publicPersistentResourceUriEnableSigning = (bool)$uriOptionValue;
+                            break;
+                            case 'signatureLifetime':
+                                $this->publicPersistentResourceUriSignatureLifetime = (int)$uriOptionValue;
+                            break;
+                            default:
+                                if ($value !== null) {
+                                    throw new Exception(sprintf('An unknown option "%s" was specified in the configuration of the "%s" resource GcsTarget. Please check your settings.', $uriOptionKey, $name), 1568876031);
+                                }
+                        }
+                    }
                 break;
                 case 'corsAllowOrigin':
                     $this->corsAllowOrigin = $value;
@@ -454,7 +484,7 @@ class GcsTarget implements TargetInterface
      */
     public function getPublicPersistentResourceUri(PersistentResource $resource): string
     {
-        $uri = $this->publicPersistentResourceUriPattern;
+        $customUri = $this->publicPersistentResourceUriPattern;
         $variables = [
             '{baseUri}' => $this->baseUri,
             '{bucketName}' => $this->bucketName,
@@ -466,17 +496,16 @@ class GcsTarget implements TargetInterface
         ];
 
         foreach ($variables as $placeholder => $replacement) {
-            $uri = str_replace($placeholder, $replacement, $uri);
+            $customUri = str_replace($placeholder, $replacement, $customUri);
         }
 
-        return $uri;
-
-        $relativePathAndFilename = $this->encodeRelativePathAndFilenameForUri($this->getRelativePublicationPathAndFilename($resource));
-        if ($this->baseUri !== '') {
-            return $this->baseUri . $relativePathAndFilename;
+        if ($this->publicPersistentResourceUriEnableSigning) {
+            $objectName = $this->keyPrefix . $resource->getSha1();
+            $signedStandardUri = new Uri($this->getCurrentBucket()->object($objectName)->signedUrl(time() + $this->publicPersistentResourceUriSignatureLifetime, ['method' => 'GET']));
+            $customUri .= '?' . $signedStandardUri->getQuery();
         }
 
-        return 'https://storage.googleapis.com/' . $this->bucketName . '/' . $this->keyPrefix . $relativePathAndFilename;
+        return $customUri;
     }
 
     /**
