@@ -22,6 +22,7 @@ use Google\Cloud\Storage\StorageObject;
 use Neos\Flow\Annotations as Flow;
 use Neos\Flow\Http\Uri;
 use Neos\Flow\Log\Utility\LogEnvironment;
+use Neos\Flow\ObjectManagement\ObjectManagerInterface;
 use Neos\Flow\ResourceManagement\CollectionInterface;
 use Neos\Flow\ResourceManagement\Exception;
 use Neos\Flow\ResourceManagement\PersistentResource;
@@ -90,6 +91,11 @@ class GcsTarget implements TargetInterface
      * @var string
      */
     protected $baseUri = '';
+
+    /**
+     * @var array
+     */
+    protected $customBaseUriMethod = [];
 
     /**
      * @var int
@@ -161,6 +167,12 @@ class GcsTarget implements TargetInterface
     protected $existingObjectsInfo;
 
     /**
+     * @Flow\Inject
+     * @var ObjectManagerInterface
+     */
+    protected $objectManager;
+
+    /**
      * Constructor
      *
      * @param string $name Name of this target instance, according to the resource settings
@@ -208,6 +220,15 @@ class GcsTarget implements TargetInterface
                         $this->baseUri = $value;
                     }
                 break;
+                case 'customBaseUriMethod':
+                    if (!is_array($value)) {
+                        throw new Exception(sprintf('The option "%s" which was specified in the configuration of the "%s" resource GcsTarget is not a valid array. Please check your settings.', $key, $name), 1569227014);
+                    }
+                    if (!isset($value['objectName'], $value['methodName'])) {
+                        throw new Exception(sprintf('The option "%s" which was specified in the configuration of the "%s" resource GcsTarget requires exactly two keys ("objectName" and "methodName"). Please check your settings.', $key, $name), 1569227112);
+                    }
+                    $this->customBaseUriMethod = $value;
+                break;
                 case 'gzipCompressionLevel':
                     $this->gzipCompressionLevel = (int)$value;
                 break;
@@ -235,10 +256,30 @@ class GcsTarget implements TargetInterface
      *
      * @return void
      * @throws CloudStorageException
+     * @throws Exception
      */
     public function initializeObject(): void
     {
         $this->storageClient = $this->storageFactory->create();
+        if ($this->customBaseUriMethod !== []) {
+            if (!$this->objectManager->isRegistered($this->customBaseUriMethod['objectName'])) {
+                throw new Exception(sprintf('Unknown object "%s" defined as custom base URI method in the configuration of the "%s" resource GcsTarget. Please check your settings.', $this->customBaseUriMethod['objectName'], $this->name), 1569228841);
+            }
+            $object = $this->objectManager->get($this->customBaseUriMethod['objectName']);
+            $methodName = $this->customBaseUriMethod['methodName'];
+            if (!method_exists($object, $methodName)) {
+                throw new Exception(sprintf('Unknown method "%s->%s" defined as custom base URI method in the configuration of the "%s" resource GcsTarget. Please check your settings.', $this->customBaseUriMethod['objectName'], $methodName, $this->name), 1569228902);
+            }
+            $this->baseUri = $object->$methodName(
+                [
+                    'targetClass' => get_class($this),
+                    'bucketName' => $this->bucketName,
+                    'keyPrefix' => $this->keyPrefix,
+                    'baseUri' => $this->baseUri,
+                    'persistentResourceUriEnableSigning' => $this->persistentResourceUriEnableSigning
+                ]
+            );
+        }
     }
 
     /**

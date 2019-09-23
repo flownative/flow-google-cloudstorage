@@ -70,10 +70,6 @@ $ ./flow gcs:connect storage.example.net
 Right now, you can only define one connection profile, namely the "default" profile. Additional profiles may be supported
 in future versions.
 
-## User Setup
-
-tbd.
-
 ## Publish Assets to Google Cloud Storage
 
 Once the connector package is in place, you add a new publishing target which uses that connect and assign this target
@@ -250,6 +246,48 @@ For legacy and convenience reasons, the default pattern depends on the setup bei
 
 The respective setup is auto-detected by the Target and the patterns set accordingly. You may, of course,
 override the patterns, by specifying the `pattern` setting as explained above.
+
+## Dynamic Custom Base Uri
+
+Your application may take the responsibility to render a base URI by registering a custom method. After the
+options were set, the Target will call your method and use the returned string as a base URI.
+
+This mechanism allows you to tweak the domain, or other parts of the base URI, depending on the current
+request. In the following example, we replace the domain "example.com" by "replaced.com", using a customer
+base URI method.
+
+
+```php
+namespace Flownative\Test;
+
+class CloudStorageDemo {
+    /**
+     * @param array $targetOptions
+     * @return string
+     */
+    public function renderBaseUri(array $targetOptions): string
+    {
+        return str_replace('example.com', 'replaced.com', $targetOptions['baseUri']);
+    }
+}
+```
+
+```yaml
+      targets:
+        googlePersistentResourcesTarget:
+          target: 'Flownative\Google\CloudStorage\GcsTarget'
+          targetOptions:
+            customBaseUriMethod:
+              objectName: 'Flownative\Test\CloudStorageDemo'
+              methodName: 'renderBaseUri'
+```
+
+The following options are passed to your render method:
+- targetClass
+- bucketName
+- keyPrefix
+- baseUri
+- persistentResourceUriEnableSigning
 
 ## Publish Uris with Limited Lifetime
 
