@@ -19,8 +19,8 @@ use Google\Cloud\Core\Exception\NotFoundException;
 use Google\Cloud\Storage\Bucket;
 use Google\Cloud\Storage\StorageClient;
 use Google\Cloud\Storage\StorageObject;
+use GuzzleHttp\Psr7\Uri;
 use Neos\Flow\Annotations as Flow;
-use Neos\Flow\Http\Uri;
 use Neos\Flow\Log\Utility\LogEnvironment;
 use Neos\Flow\ObjectManagement\ObjectManagerInterface;
 use Neos\Flow\ResourceManagement\CollectionInterface;
@@ -562,7 +562,9 @@ class GcsTarget implements TargetInterface
             $customUri .= '?' . $signedStandardUri->getQuery();
         }
 
-        return $customUri;
+        // Let Uri implementation take care of encoding the Uri
+        $uri = new Uri($customUri);
+        return (string)$uri;
     }
 
     /**
