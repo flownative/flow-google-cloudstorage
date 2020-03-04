@@ -34,7 +34,7 @@ $ composer require flownative/google-cloudstorage:4.*
 In order to communicate with the Google API, you need to provide the credentials of an account which has access
 to GCS (see next section for instructions for setting up the service user). Add the following configuration to the
 `Settings.yaml` for your desired Flow context (for example in `Configuration/Production/Settings.yaml`) and make sure
-to replace client email and the private key with your own data:
+to replace the private key with your own data:
   
 ```yaml
 Flownative:
@@ -43,7 +43,6 @@ Flownative:
       profiles:
         default:
           credentials:
-            clientEmail: '123456789012-abc123defg456hijklmnopqrstuvwxyz@developer.gserviceaccount.com'
             privateKeyJsonPathAndFilename: 'Data/Secrets/MyGoogleProject-abc123457def.json'
 ```
 
@@ -57,7 +56,6 @@ Flownative:
       profiles:
         default:
           credentials:
-            clientEmail: '123456789012-abc123defg456hijklmnopqrstuvwxyz@developer.gserviceaccount.com'
             privateKeyJsonBase64Encoded: '%env:SOME_ENVIRONMENT_VARIABLE_WITH_PRIVATE_KEY%'
 ```
 
@@ -396,6 +394,5 @@ Flownative:
       profiles:
         default:
           credentials:
-            clientEmail: '123456789012-abc123defg456hijklmnopqrstuvwxyz@developer.gserviceaccount.com'
             privateKeyJsonPathAndFilename: 'Data/Secrets/MyGoogleProject-abc123457def.json'
 ```
