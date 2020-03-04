@@ -5,8 +5,6 @@ Flownative:
         # Default credentials and client options - override these in your settings with real values
         default:
           credentials:
-            clientEmail: '123456789012-abc123defg456hijklmnopqrstuvwxyz@developer.gserviceaccount.com'
-
             # The private key (JSON) can be specified in two ways: either by specifying the path and filename leading to
             # the file containing the key, or as a string with the JSON key data (base64 encoded). If both options are set,
             # the "privateKeyJson" option wins.
