@@ -150,7 +150,7 @@ Neos:
 Now you can use the ``resource:copy`` command (available in Flow 3.1 or Neos 2.1 and higher):
 
 ```bash
-$ ./flow resource:copy --publish persistent tmpNewCollection
+$ ./flow resource:copy persistent tmpNewCollection --publish
 ```
 
 This will copy all your files from your current storage (local filesystem) to the new remote storage. The ``--publish``
