@@ -453,7 +453,12 @@ class GcsTarget implements TargetInterface
             while (!$updated) {
                 try {
                     $storageBucket = $this->storageClient->bucket($storage->getBucketName());
-                    $storageBucket->object($storage->getKeyPrefix() . $resource->getSha1())->update(['contentType' => $resource->getMediaType()]);
+                    $storageBucket->object($storage->getKeyPrefix() . $resource->getSha1())->update(
+                        [
+                            'predefinedAcl' => 'publicRead',
+                            'contentType' => $resource->getMediaType(),
+                            'cacheControl' => 'public, max-age=1209600'
+                        ]);
                     $updated = true;
                 } catch (GoogleException $exception) {
                     $retries++;
