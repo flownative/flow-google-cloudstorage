@@ -67,7 +67,8 @@
             "Neos.Kickstarter-20161125110814",
             "TYPO3.Form-20160601101500",
             "Neos.Twitter.Bootstrap-20161124204912",
-            "Neos.Form-20161124205254"
+            "Neos.Form-20161124205254",
+            "Neos.Party-20161124225257"
         ]
     }
 }
