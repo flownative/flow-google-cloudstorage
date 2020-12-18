@@ -26,7 +26,6 @@ use Neos\Flow\ResourceManagement\ResourceRepository;
 use Neos\Flow\ResourceManagement\Storage\StorageObject;
 use Neos\Flow\ResourceManagement\Storage\WritableStorageInterface;
 use Neos\Flow\Utility\Environment;
-use Neos\Utility\Exception\FilesException;
 use Psr\Log\LoggerInterface;
 
 /**
@@ -227,7 +226,6 @@ class GcsStorage implements WritableStorageInterface
     public function importResourceFromContent($content, $collectionName): PersistentResource
     {
         $sha1Hash = sha1($content);
-        $md5Hash = md5($content);
         $filename = $sha1Hash;
 
         $resource = new PersistentResource();
@@ -235,7 +233,6 @@ class GcsStorage implements WritableStorageInterface
         $resource->setFileSize(strlen($content));
         $resource->setCollectionName($collectionName);
         $resource->setSha1($sha1Hash);
-        $resource->setMd5($md5Hash);
 
         $this->getCurrentBucket()->upload($content, [
             'name' => $this->keyPrefix . $sha1Hash,
@@ -276,14 +273,12 @@ class GcsStorage implements WritableStorageInterface
         }
 
         $sha1Hash = sha1_file($newSourcePathAndFilename);
-        $md5Hash = md5_file($newSourcePathAndFilename);
 
         $resource = new PersistentResource();
         $resource->setFilename($originalFilename);
         $resource->setCollectionName($collectionName);
         $resource->setFileSize(filesize($newSourcePathAndFilename));
         $resource->setSha1($sha1Hash);
-        $resource->setMd5($md5Hash);
 
         try {
             $this->getCurrentBucket()->upload(fopen($newSourcePathAndFilename, 'rb'), [
@@ -369,16 +364,16 @@ class GcsStorage implements WritableStorageInterface
     /**
      * Retrieve all Objects stored in this storage.
      *
-     * @return array<\Neos\Flow\ResourceManagement\Storage\StorageObject>
+     * @return StorageObject[]
      * @api
      */
     public function getObjects()
     {
         $objects = [];
         foreach ($this->resourceManager->getCollectionsByStorage($this) as $collection) {
+            /** @noinspection SlowArrayOperationsInLoopInspection */
             $objects = array_merge($objects, $this->getObjectsByCollection($collection));
         }
-
         return $objects;
     }
 
@@ -386,7 +381,7 @@ class GcsStorage implements WritableStorageInterface
      * Retrieve all Objects stored in this storage, filtered by the given collection name
      *
      * @param CollectionInterface $collection
-     * @return array<\Neos\Flow\ResourceManagement\Storage\StorageObject>
+     * @return StorageObject[]
      * @api
      */
     public function getObjectsByCollection(CollectionInterface $collection): array
@@ -421,13 +416,11 @@ class GcsStorage implements WritableStorageInterface
     protected function importTemporaryFile(string $temporaryPathAndFilename, string $collectionName): PersistentResource
     {
         $sha1Hash = sha1_file($temporaryPathAndFilename);
-        $md5Hash = md5_file($temporaryPathAndFilename);
 
         $resource = new PersistentResource();
         $resource->setFileSize(filesize($temporaryPathAndFilename));
         $resource->setCollectionName($collectionName);
         $resource->setSha1($sha1Hash);
-        $resource->setMd5($md5Hash);
 
         $bucket = $this->getCurrentBucket();
         if (!$bucket->object($this->keyPrefix . $sha1Hash)->exists()) {
@@ -449,7 +442,7 @@ class GcsStorage implements WritableStorageInterface
                 throw $exception;
             }
 
-            $this->logger->info(sprintf('Google Cloud Storage: Successfully imported resource as object "%s" into bucket "%s" with MD5 hash "%s"', $sha1Hash, $this->bucketName, $resource->getMd5() ?: 'unknown'), LogEnvironment::fromMethodName(__METHOD__));
+            $this->logger->info(sprintf('Google Cloud Storage: Successfully imported resource as object "%s" into bucket "%s" with SHA1 hash "%s"', $sha1Hash, $this->bucketName, $resource->getSha1() ?: 'unknown'), LogEnvironment::fromMethodName(__METHOD__));
         } else {
             $this->logger->info(sprintf('Google Cloud Storage: Did not import resource as object "%s" into bucket "%s" because that object already existed.', $sha1Hash, $this->bucketName), LogEnvironment::fromMethodName(__METHOD__));
         }
