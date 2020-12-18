@@ -20,6 +20,7 @@ use Google\Cloud\Storage\Bucket;
 use Google\Cloud\Storage\StorageClient;
 use Google\Cloud\Storage\StorageObject;
 use GuzzleHttp\Psr7\Uri;
+use Neos\Error\Messages\Error;
 use Neos\Flow\Annotations as Flow;
 use Neos\Flow\Log\Utility\LogEnvironment;
 use Neos\Flow\ObjectManagement\ObjectManagerInterface;
@@ -488,9 +489,9 @@ class GcsTarget implements TargetInterface
             } catch (GoogleException $e) {
                 $googleError = json_decode($e->getMessage());
                 if ($googleError instanceof \stdClass && isset($googleError->error->message)) {
-                    $this->messageCollector->append(sprintf('Could not copy resource with SHA1 hash %s of collection %s from bucket %s to %s: %s', $resource->getSha1(), $collection->getName(), $storage->getBucketName(), $this->bucketName, $googleError->error->message), LOG_ERR, 1446721791);
+                    $this->messageCollector->append(sprintf('Could not copy resource with SHA1 hash %s of collection %s from bucket %s to %s: %s', $resource->getSha1(), $collection->getName(), $storage->getBucketName(), $this->bucketName, $googleError->error->message), Error::SEVERITY_ERROR, 1446721791);
                 } else {
-                    $this->messageCollector->append(sprintf('Could not copy resource with SHA1 hash %s of collection %s from bucket %s to %s: %s', $resource->getSha1(), $collection->getName(), $storage->getBucketName(), $this->bucketName, $e->getMessage()), LOG_ERR, 1446721791);
+                    $this->messageCollector->append(sprintf('Could not copy resource with SHA1 hash %s of collection %s from bucket %s to %s: %s', $resource->getSha1(), $collection->getName(), $storage->getBucketName(), $this->bucketName, $e->getMessage()), Error::SEVERITY_ERROR, 1446721791);
                 }
                 return;
             }
@@ -499,7 +500,7 @@ class GcsTarget implements TargetInterface
         } else {
             $sourceStream = $resource->getStream();
             if ($sourceStream === false) {
-                $this->messageCollector->append(sprintf('Could not publish resource with SHA1 hash %s of collection %s because there seems to be no corresponding data in the storage.', $resource->getSha1(), $collection->getName()), LOG_ERR, 1446721810);
+                $this->messageCollector->append(sprintf('Could not publish resource with SHA1 hash %s of collection %s because there seems to be no corresponding data in the storage.', $resource->getSha1(), $collection->getName()), Error::SEVERITY_ERROR, 1446721810);
                 return;
             }
             $this->publishFile($sourceStream, $this->getRelativePublicationPathAndFilename($resource), $resource);
@@ -604,14 +605,14 @@ class GcsTarget implements TargetInterface
 
                 $this->logger->debug(sprintf('Converted resource data of object "%s" in bucket "%s" with SHA1 hash "%s" to GZIP with level %s.', $objectName, $this->bucketName, $metaData->getSha1() ?: 'unknown', $this->gzipCompressionLevel), LogEnvironment::fromMethodName(__METHOD__));
             } catch (\Exception $e) {
-                $this->messageCollector->append(sprintf('Failed publishing resource as object "%s" in bucket "%s" with SHA1 hash "%s": %s', $objectName, $this->bucketName, $metaData->getSha1() ?: 'unknown', $e->getMessage()), LOG_WARNING, 1520257344878);
+                $this->messageCollector->append(sprintf('Failed publishing resource as object "%s" in bucket "%s" with SHA1 hash "%s": %s', $objectName, $this->bucketName, $metaData->getSha1() ?: 'unknown', $e->getMessage()), Error::SEVERITY_WARNING, 1520257344878);
             }
         }
         try {
             $this->getCurrentBucket()->upload($sourceStream, $uploadParameters);
             $this->logger->debug(sprintf('Successfully published resource as object "%s" in bucket "%s" with SHA1 hash "%s"', $objectName, $this->bucketName, $metaData->getSha1() ?: 'unknown'), LogEnvironment::fromMethodName(__METHOD__));
         } catch (\Exception $e) {
-            $this->messageCollector->append(sprintf('Failed publishing resource as object "%s" in bucket "%s" with SHA1 hash "%s": %s', $objectName, $this->bucketName, $metaData->getSha1() ?: 'unknown', $e->getMessage()), LOG_WARNING, 1506847965352);
+            $this->messageCollector->append(sprintf('Failed publishing resource as object "%s" in bucket "%s" with SHA1 hash "%s": %s', $objectName, $this->bucketName, $metaData->getSha1() ?: 'unknown', $e->getMessage()), Error::SEVERITY_WARNING, 1506847965352);
         } finally {
             if (is_resource($sourceStream)) {
                 fclose($sourceStream);
