@@ -233,7 +233,6 @@ The possible placeholders are:
 - `{bucketName}` The target's bucket name
 - `{keyPrefix}` The target's configured key prefix
 - `{sha1}` The resource's SHA1
-- `{md5}` The resource's MD5 🙄
 - `{filename}` The resource's full filename, for example "logo.svg"
 - `{fileExtension}` The resource's file extension, for example "svg"
 

@@ -20,6 +20,7 @@ use Google\Cloud\Storage\Bucket;
 use Google\Cloud\Storage\StorageClient;
 use Google\Cloud\Storage\StorageObject;
 use GuzzleHttp\Psr7\Uri;
+use Neos\Error\Messages\Error;
 use Neos\Flow\Annotations as Flow;
 use Neos\Flow\Log\Utility\LogEnvironment;
 use Neos\Flow\ObjectManagement\ObjectManagerInterface;
@@ -393,7 +394,7 @@ class GcsTarget implements TargetInterface
                 } catch (\Exception $e) {
                     $this->messageCollector->append(sprintf('Could not publish resource with SHA1 hash %s of collection %s from bucket %s to %s: %s', $object->getSha1(), $collection->getName(), $storageBucketName, $this->bucketName, $e->getMessage()));
                 }
-                $this->logger->debug(sprintf('Successfully copied resource as object "%s" (MD5: %s) from bucket "%s" to bucket "%s" (with GZIP compression)', $targetObjectName, $object->getMd5() ?: 'unknown', $storageBucketName, $this->bucketName), LogEnvironment::fromMethodName(__METHOD__));
+                $this->logger->debug(sprintf('Successfully copied resource as object "%s" (SHA1: %s) from bucket "%s" to bucket "%s" (with GZIP compression)', $targetObjectName, $object->getSha1() ?: 'unknown', $storageBucketName, $this->bucketName), LogEnvironment::fromMethodName(__METHOD__));
             } else {
                 try {
                     $this->logger->debug(sprintf('Copy object "%s" to bucket "%s"', $targetObjectName, $this->bucketName), LogEnvironment::fromMethodName(__METHOD__));
@@ -414,7 +415,7 @@ class GcsTarget implements TargetInterface
                     }
                     continue;
                 }
-                $this->logger->debug(sprintf('Successfully copied resource as object "%s" (MD5: %s) from bucket "%s" to bucket "%s"', $targetObjectName, $object->getMd5() ?: 'unknown', $storageBucketName, $this->bucketName), LogEnvironment::fromMethodName(__METHOD__));
+                $this->logger->debug(sprintf('Successfully copied resource as object "%s" (SHA1: %s) from bucket "%s" to bucket "%s"', $targetObjectName, $object->getSha1() ?: 'unknown', $storageBucketName, $this->bucketName), LogEnvironment::fromMethodName(__METHOD__));
             }
             unset($targetObjectName);
             $iteration++;
@@ -488,18 +489,18 @@ class GcsTarget implements TargetInterface
             } catch (GoogleException $e) {
                 $googleError = json_decode($e->getMessage());
                 if ($googleError instanceof \stdClass && isset($googleError->error->message)) {
-                    $this->messageCollector->append(sprintf('Could not copy resource with SHA1 hash %s of collection %s from bucket %s to %s: %s', $resource->getSha1(), $collection->getName(), $storage->getBucketName(), $this->bucketName, $googleError->error->message), LOG_ERR, 1446721791);
+                    $this->messageCollector->append(sprintf('Could not copy resource with SHA1 hash %s of collection %s from bucket %s to %s: %s', $resource->getSha1(), $collection->getName(), $storage->getBucketName(), $this->bucketName, $googleError->error->message), Error::SEVERITY_ERROR, 1446721791);
                 } else {
-                    $this->messageCollector->append(sprintf('Could not copy resource with SHA1 hash %s of collection %s from bucket %s to %s: %s', $resource->getSha1(), $collection->getName(), $storage->getBucketName(), $this->bucketName, $e->getMessage()), LOG_ERR, 1446721791);
+                    $this->messageCollector->append(sprintf('Could not copy resource with SHA1 hash %s of collection %s from bucket %s to %s: %s', $resource->getSha1(), $collection->getName(), $storage->getBucketName(), $this->bucketName, $e->getMessage()), Error::SEVERITY_ERROR, 1446721791);
                 }
                 return;
             }
 
-            $this->logger->debug(sprintf('Successfully published resource as object "%s" (MD5: %s) by copying from bucket "%s" to bucket "%s"', $targetObjectName, $resource->getMd5() ?: 'unknown', $storage->getBucketName(), $this->bucketName), LogEnvironment::fromMethodName(__METHOD__));
+            $this->logger->debug(sprintf('Successfully published resource as object "%s" (SHA1: %s) by copying from bucket "%s" to bucket "%s"', $targetObjectName, $resource->getSha1() ?: 'unknown', $storage->getBucketName(), $this->bucketName), LogEnvironment::fromMethodName(__METHOD__));
         } else {
             $sourceStream = $resource->getStream();
             if ($sourceStream === false) {
-                $this->messageCollector->append(sprintf('Could not publish resource with SHA1 hash %s of collection %s because there seems to be no corresponding data in the storage.', $resource->getSha1(), $collection->getName()), LOG_ERR, 1446721810);
+                $this->messageCollector->append(sprintf('Could not publish resource with SHA1 hash %s of collection %s because there seems to be no corresponding data in the storage.', $resource->getSha1(), $collection->getName()), Error::SEVERITY_ERROR, 1446721810);
                 return;
             }
             $this->publishFile($sourceStream, $this->getRelativePublicationPathAndFilename($resource), $resource);
@@ -523,7 +524,7 @@ class GcsTarget implements TargetInterface
         try {
             $objectName = $this->keyPrefix . $this->getRelativePublicationPathAndFilename($resource);
             $this->getCurrentBucket()->object($objectName)->delete();
-            $this->logger->debug(sprintf('Successfully unpublished resource as object "%s" (MD5: %s) from bucket "%s"', $objectName, $resource->getMd5() ?: 'unknown', $this->bucketName), LogEnvironment::fromMethodName(__METHOD__));
+            $this->logger->debug(sprintf('Successfully unpublished resource as object "%s" (SHA1: %s) from bucket "%s"', $objectName, $resource->getSha1() ?: 'unknown', $this->bucketName), LogEnvironment::fromMethodName(__METHOD__));
         } catch (NotFoundException $e) {
         }
     }
@@ -552,7 +553,6 @@ class GcsTarget implements TargetInterface
             '{bucketName}' => $this->bucketName,
             '{keyPrefix}' => $this->keyPrefix,
             '{sha1}' => $resource->getSha1(),
-            '{md5}' => $resource->getMd5(),
             '{filename}' => $resource->getFilename(),
             '{fileExtension}' => $resource->getFileExtension()
         ];
@@ -603,16 +603,16 @@ class GcsTarget implements TargetInterface
                 $sourceStream = fopen($temporaryTargetPathAndFilename, 'rb');
                 $uploadParameters['metadata']['contentEncoding'] = 'gzip';
 
-                $this->logger->debug(sprintf('Converted resource data of object "%s" in bucket "%s" with MD5 hash "%s" to GZIP with level %s.', $objectName, $this->bucketName, $metaData->getMd5() ?: 'unknown', $this->gzipCompressionLevel), LogEnvironment::fromMethodName(__METHOD__));
+                $this->logger->debug(sprintf('Converted resource data of object "%s" in bucket "%s" with SHA1 hash "%s" to GZIP with level %s.', $objectName, $this->bucketName, $metaData->getSha1() ?: 'unknown', $this->gzipCompressionLevel), LogEnvironment::fromMethodName(__METHOD__));
             } catch (\Exception $e) {
-                $this->messageCollector->append(sprintf('Failed publishing resource as object "%s" in bucket "%s" with MD5 hash "%s": %s', $objectName, $this->bucketName, $metaData->getMd5() ?: 'unknown', $e->getMessage()), LOG_WARNING, 1520257344878);
+                $this->messageCollector->append(sprintf('Failed publishing resource as object "%s" in bucket "%s" with SHA1 hash "%s": %s', $objectName, $this->bucketName, $metaData->getSha1() ?: 'unknown', $e->getMessage()), Error::SEVERITY_WARNING, 1520257344878);
             }
         }
         try {
             $this->getCurrentBucket()->upload($sourceStream, $uploadParameters);
-            $this->logger->debug(sprintf('Successfully published resource as object "%s" in bucket "%s" with MD5 hash "%s"', $objectName, $this->bucketName, $metaData->getMd5() ?: 'unknown'), LogEnvironment::fromMethodName(__METHOD__));
+            $this->logger->debug(sprintf('Successfully published resource as object "%s" in bucket "%s" with SHA1 hash "%s"', $objectName, $this->bucketName, $metaData->getSha1() ?: 'unknown'), LogEnvironment::fromMethodName(__METHOD__));
         } catch (\Exception $e) {
-            $this->messageCollector->append(sprintf('Failed publishing resource as object "%s" in bucket "%s" with MD5 hash "%s": %s', $objectName, $this->bucketName, $metaData->getMd5() ?: 'unknown', $e->getMessage()), LOG_WARNING, 1506847965352);
+            $this->messageCollector->append(sprintf('Failed publishing resource as object "%s" in bucket "%s" with SHA1 hash "%s": %s', $objectName, $this->bucketName, $metaData->getSha1() ?: 'unknown', $e->getMessage()), Error::SEVERITY_WARNING, 1506847965352);
         } finally {
             if (is_resource($sourceStream)) {
                 fclose($sourceStream);
