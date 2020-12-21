@@ -3,7 +3,7 @@
 [![Packagist](https://img.shields.io/packagist/dm/flownative/google-cloudstorage)](https://packagist.org/packages/flownative/google-cloudstorage)
 [![Maintenance level: Love](https://img.shields.io/badge/maintenance-%E2%99%A1%E2%99%A1%E2%99%A1-ff69b4.svg)](https://www.flownative.com/en/products/open-source.html)
 
-# Google Cloud Storage Adaptor for Neos 4.2/5.x and Flow >=5.2 / 6.x
+# Google Cloud Storage Adaptor for Neos >= 4.2 / 5.x / 7.x and Flow >=5.2 / 6.x / 7.x
 
 This [Flow](https://flow.neos.io) package allows you to store assets (resources) in [Google Cloud Storage](https://cloud.google.com/storage/)
 and publish resources to GCS. Because [Neos CMS](https://www.neos.io) is using Flow's resource management under the hood,
@@ -23,10 +23,8 @@ Using this connector, you can run a Neos website which does not store any asset 
 The Flownative Google Cloud Storage connector is installed as a regular Flow package via Composer. For your existing
 project, simply include `flownative/google-cloudstorage` into the dependencies of your Flow or Neos distribution:
 
-For Neos 3.* and higher:
-
 ```bash
-$ composer require flownative/google-cloudstorage:4.*
+$ composer require flownative/google-cloudstorage
 ```
 
 ## Configuration
