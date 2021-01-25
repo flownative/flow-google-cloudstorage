@@ -23,7 +23,13 @@ Using this connector, you can run a Neos website which does not store any asset 
 The Flownative Google Cloud Storage connector is installed as a regular Flow package via Composer. For your existing
 project, simply include `flownative/google-cloudstorage` into the dependencies of your Flow or Neos distribution:
 
-For Neos 3.* and higher:
+For Flow 5.x or higher:
+
+```bash
+$ composer require flownative/google-cloudstorage:5.*
+```
+
+For Flow 4.x:
 
 ```bash
 $ composer require flownative/google-cloudstorage:4.*
