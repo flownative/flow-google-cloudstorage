@@ -422,6 +422,11 @@ class GcsStorage implements WritableStorageInterface
         $resource->setCollectionName($collectionName);
         $resource->setSha1($sha1Hash);
 
+        # Provide compatibility with Flow 6.x and earlier:
+        if (method_exists($resource, 'setMd5')) {
+            $resource->setMd5(md5_file($temporaryPathAndFilename));
+        }
+
         $bucket = $this->getCurrentBucket();
         if (!$bucket->object($this->keyPrefix . $sha1Hash)->exists()) {
             try {

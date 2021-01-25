@@ -557,6 +557,10 @@ class GcsTarget implements TargetInterface
             '{fileExtension}' => $resource->getFileExtension()
         ];
 
+        if (method_exists($resource, 'getMd5')) {
+            $variables['{md5}'] = $resource->getMd5();
+        }
+
         foreach ($variables as $placeholder => $replacement) {
             $customUri = str_replace($placeholder, $replacement, $customUri);
         }
