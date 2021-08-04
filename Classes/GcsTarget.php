@@ -596,7 +596,7 @@ class GcsTarget implements TargetInterface
 
         if (in_array($metaData->getMediaType(), $this->gzipCompressionMediaTypes, true)) {
             try {
-                $temporaryTargetPathAndFilename = $this->environment->getPathToTemporaryDirectory() . uniqid('Flownative_Google_CloudStorage_', true);
+                $temporaryTargetPathAndFilename = $this->environment->getPathToTemporaryDirectory() . uniqid('Flownative_Google_CloudStorage_', true) . '.tmp';
                 $temporaryTargetStream = gzopen($temporaryTargetPathAndFilename, 'wb' . $this->gzipCompressionLevel);
                 while (!feof($sourceStream)) {
                     gzwrite($temporaryTargetStream, fread($sourceStream, 524288));
