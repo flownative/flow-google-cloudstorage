@@ -179,7 +179,7 @@ class GcsStorage implements WritableStorageInterface
      */
     public function importResource($source, $collectionName): PersistentResource
     {
-        $temporaryTargetPathAndFilename = $this->environment->getPathToTemporaryDirectory() . uniqid('Flownative_Google_CloudStorage_', true);
+        $temporaryTargetPathAndFilename = $this->environment->getPathToTemporaryDirectory() . uniqid('Flownative_Google_CloudStorage_', true) . '.tmp';
 
         if (is_resource($source)) {
             try {
@@ -238,7 +238,7 @@ class GcsStorage implements WritableStorageInterface
         if (method_exists($resource, 'setMd5')) {
             $resource->setMd5(md5($content));
         }
-        
+
         $this->getCurrentBucket()->upload($content, [
             'name' => $this->keyPrefix . $sha1Hash,
             'metadata' => [
@@ -272,7 +272,7 @@ class GcsStorage implements WritableStorageInterface
             throw new Exception(sprintf('The temporary file "%s" of the file upload does not exist (anymore).', $sourcePathAndFilename), 1446667850);
         }
 
-        $newSourcePathAndFilename = $this->environment->getPathToTemporaryDirectory() . 'Flownative_Google_CloudStorage_' . uniqid('', true) . '.tmp';
+        $newSourcePathAndFilename = $this->environment->getPathToTemporaryDirectory() . uniqid('Flownative_Google_CloudStorage_', true) . '.tmp';
         if (move_uploaded_file($sourcePathAndFilename, $newSourcePathAndFilename) === false) {
             throw new Exception(sprintf('The uploaded file "%s" could not be moved to the temporary location "%s".', $sourcePathAndFilename, $newSourcePathAndFilename), 1446667851);
         }
