@@ -452,7 +452,7 @@ class GcsStorage implements WritableStorageInterface
                 throw $exception;
             }
 
-            $this->logger->info(sprintf('Google Cloud Storage: Successfully imported resource as object "%s" into bucket "%s" with SHA1 hash "%s"', $sha1Hash, $this->bucketName, $resource->getSha1() ?: 'unknown'), LogEnvironment::fromMethodName(__METHOD__));
+            $this->logger->debug(sprintf('Google Cloud Storage: Successfully imported resource as object "%s" into bucket "%s" with SHA1 hash "%s"', $sha1Hash, $this->bucketName, $resource->getSha1() ?: 'unknown'), LogEnvironment::fromMethodName(__METHOD__));
         } else {
             $this->logger->debug(sprintf('Google Cloud Storage: Did not import resource as object "%s" into bucket "%s" because that object already existed.', $sha1Hash, $this->bucketName), LogEnvironment::fromMethodName(__METHOD__));
         }
