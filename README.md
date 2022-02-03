@@ -3,7 +3,7 @@
 [![Packagist](https://img.shields.io/packagist/dm/flownative/google-cloudstorage)](https://packagist.org/packages/flownative/google-cloudstorage)
 [![Maintenance level: Love](https://img.shields.io/badge/maintenance-%E2%99%A1%E2%99%A1%E2%99%A1-ff69b4.svg)](https://www.flownative.com/en/products/open-source.html)
 
-# Google Cloud Storage Adaptor for Neos >= 4.2 / 5.x / 7.x and Flow >=5.2 / 6.x / 7.x
+# Google Cloud Storage Adaptor for Neos and Flow
 
 This [Flow](https://flow.neos.io) package allows you to store assets (resources) in [Google Cloud Storage](https://cloud.google.com/storage/)
 and publish resources to GCS. Because [Neos CMS](https://www.neos.io) is using Flow's resource management under the hood,
@@ -20,8 +20,8 @@ Using this connector, you can run a Neos website which does not store any asset 
 
 ## Installation
 
-The Flownative Google Cloud Storage connector is installed as a regular Flow package via Composer. For your existing
-project, simply include `flownative/google-cloudstorage` into the dependencies of your Flow or Neos distribution:
+The Flownative Google Cloud Storage connector is installed as a regular Flow package via Composer. Simply
+include `flownative/google-cloudstorage` into the dependencies of your Flow or Neos distribution:
 
 ```bash
 $ composer require flownative/google-cloudstorage
@@ -33,7 +33,7 @@ In order to communicate with the Google API, you need to provide the credentials
 to GCS (see next section for instructions for setting up the service user). Add the following configuration to the
 `Settings.yaml` for your desired Flow context (for example in `Configuration/Production/Settings.yaml`) and make sure
 to replace the private key with your own data:
-  
+
 ```yaml
 Flownative:
   Google:
@@ -188,7 +188,7 @@ On the backside, the URLs are kind of ugly, because they only consist of a domai
 
 ```
 https://storage.googleapis.com/bucket.example.com/a865defc2a48f060f15c3f4f21f2f1e78f154789
-``` 
+```
 
 ### Two Buckets
 
@@ -235,7 +235,7 @@ The possible placeholders are:
 - `{fileExtension}` The resource's file extension, for example "svg"
 
 For legacy and convenience reasons, the default pattern depends on the setup being used:
- 
+
  - no pattern and no baseUri set: `https://storage.googleapis.com/{bucketName}/{keyPrefix}{sha1}`
  - no pattern set: `{baseUri}/{keyPrefix}{sha1}/{filename}`
 
@@ -278,6 +278,7 @@ class CloudStorageDemo {
 ```
 
 The following options are passed to your render method:
+
 - targetClass
 - bucketName
 - keyPrefix
@@ -295,7 +296,7 @@ to generate a special signed link, which allows access to a given resource for a
 
 The Google Cloud Storage Target can take care of signing links to persistent resources. Just enable signing
 and specify a signature lifetime (in seconds) like in the following example. Be aware though, that anyone with such a
-generated link can download the given protected resource wile the link is valid. 
+generated link can download the given protected resource wile the link is valid.
 
 ```yaml
       targets:
