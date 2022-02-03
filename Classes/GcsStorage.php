@@ -376,10 +376,10 @@ class GcsStorage implements WritableStorageInterface
     {
         $objects = [];
         foreach ($this->resourceManager->getCollectionsByStorage($this) as $collection) {
-            /** @noinspection SlowArrayOperationsInLoopInspection */
-            $objects = array_merge($objects, $this->getObjectsByCollection($collection));
+            $objects[] = $this->getObjectsByCollection($collection);
         }
-        return $objects;
+
+        return array_merge([], ...$objects); // the empty array covers cases when no loops were made
     }
 
     /**
