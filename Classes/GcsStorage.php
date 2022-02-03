@@ -372,14 +372,14 @@ class GcsStorage implements WritableStorageInterface
      * @return StorageObject[]
      * @api
      */
-    public function getObjects()
+    public function getObjects(): array
     {
         $objects = [];
         foreach ($this->resourceManager->getCollectionsByStorage($this) as $collection) {
             $objects[] = $this->getObjectsByCollection($collection);
         }
 
-        return array_merge([], ...$objects); // the empty array covers cases when no loops were made
+        return array_merge([], ...$objects); // the empty array covers cases when no loops were made for PHP < 7.4
     }
 
     /**
