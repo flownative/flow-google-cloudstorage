@@ -194,7 +194,7 @@ final class GcsCommandController extends CommandController
 
         try {
             $previousSha1 = null;
-            while ($resourceRecord = $queryResult->fetch(\PDO::FETCH_ASSOC)) {
+            while ($resourceRecord = $queryResult->fetchAssociative()) {
                 if ($resourceRecord['sha1'] === $previousSha1) {
                     continue;
                 }
