@@ -14,8 +14,8 @@
         "MIT"
     ],
     "require": {
-        "neos/flow": "^5.2 || ^6.0 || ^7.0",
-        "google/cloud-storage": "1.1.*",
+        "neos/flow": "^6.0 || ^7.0",
+        "google/cloud-storage": "^1.1",
         "ext-json": "*",
         "ext-pdo": "*",
         "ext-zlib": "*"
