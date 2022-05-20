@@ -66,6 +66,50 @@ $ ./flow gcs:connect storage.example.net
 Right now, you can only define one connection profile, namely the "default" profile. Additional profiles may be supported
 in future versions.
 
+### Bucket permissions, service users and keys
+
+#### Public access
+
+For the bucket to be readable by everyone on the internet (needed to deliver assets), follow these steps:
+
+1. In the Google Cloud console, go to the _Cloud Storage Browser_ page. 
+2. In the list of buckets, click the name of the bucket that you want to make public. 
+3. Select the _Permissions_ tab near the top of the page. 
+4. Click the _+ Add_ button. 
+5. The _Add principals_ dialog box appears. 
+6. In the _New principals_ field, enter _allUsers_. 
+7. In the _Select a role_ drop down, select the _Cloud Storage_ sub-menu, and click the _Storage Object Viewer_ option. 
+8. Click _Save_. 
+9. Click _Allow public access_.
+
+This is takes care of the "read side" of affairs.
+
+#### Service account setup
+
+For Flow to be able to manage assets, you need to set up a service user with the needed rights.
+
+1. In the Google Cloud console, go to the _Service accounts_ page.
+2. In the list of service accounts, click _+ Create Service Accont_
+3. Fill in a name, adjust the generated _Service Account ID_ as you like, add a description
+4. Click _Create And Continue_
+5. Now grant the _Storage Object Admin_ role to the user
+6. Click _Continue_
+7. Click _Done_
+
+#### Key generation
+
+Now you need to create a key for that account.
+
+1. Go to the service account details page
+2. Select the _Keys_ tab near the top of the page.
+3. Click the _Add Key_ button, select _Create new key_
+4. Select _JSON_ as key type
+5. The private key file will be downloaded - keep it safe! When lost, a new key
+   must be generated.
+
+The key file can now be used with the `privateKeyJsonPathAndFilename` option or as a
+base64-encoded string for `privateKeyJsonBase64Encoded`, as described above.
+
 ## Publish Assets to Google Cloud Storage
 
 Once the connector package is in place, you add a new publishing target which uses that connect and assign this target
