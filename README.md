@@ -70,7 +70,7 @@ in future versions.
 
 #### Public access
 
-For the bucket to be readable by everyone on the internet (needed to deliver assets), follow these steps:
+For the bucket to be readable by everyone on the Internet (needed to deliver assets), follow these steps:
 
 1. In the Google Cloud console, go to the _Cloud Storage Browser_ page. 
 2. In the list of buckets, click the name of the bucket that you want to make public. 
@@ -86,10 +86,10 @@ This is takes care of the "read side" of affairs.
 
 #### Service account setup
 
-For Flow to be able to manage assets, you need to set up a service user with the needed rights.
+For Flow to be able to manage assets, you need to set up a service account with the needed rights.
 
 1. In the Google Cloud console, go to the _Service accounts_ page.
-2. In the list of service accounts, click _+ Create Service Accont_
+2. In the list of service accounts, click _+ Create Service Account_
 3. Fill in a name, adjust the generated _Service Account ID_ as you like, add a description
 4. Click _Create And Continue_
 5. Now grant the _Storage Object Admin_ role to the user
@@ -98,7 +98,7 @@ For Flow to be able to manage assets, you need to set up a service user with the
 
 #### Key generation
 
-Now you need to create a key for that account.
+In order to authenticate for a service account, you need a service account key.
 
 1. Go to the service account details page
 2. Select the _Keys_ tab near the top of the page.
