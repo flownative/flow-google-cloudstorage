@@ -192,8 +192,8 @@ class GcsStorage implements WritableStorageInterface
         } else {
             try {
                 copy($source, $temporaryTargetPathAndFilename);
-            } catch (\Exception $e) {
-                throw new Exception(sprintf('Could not copy the file from "%s" to temporary file "%s".', $source, $temporaryTargetPathAndFilename), 1446667394, $e);
+            } catch (\Throwable $t) {
+                throw new Exception(sprintf('Could not copy the file from "%s" to temporary file "%s".', $source, $temporaryTargetPathAndFilename), 1446667394, $t);
             }
         }
 
