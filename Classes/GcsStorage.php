@@ -187,13 +187,13 @@ class GcsStorage implements WritableStorageInterface
                 stream_copy_to_stream($source, $target);
                 fclose($target);
             } catch (\Exception $e) {
-                throw new Exception(sprintf('Could import the content stream to temporary file "%s".', $temporaryTargetPathAndFilename), 1446667392);
+                throw new Exception(sprintf('Could import the content stream to temporary file "%s".', $temporaryTargetPathAndFilename), 1446667392, $e);
             }
         } else {
             try {
                 copy($source, $temporaryTargetPathAndFilename);
             } catch (\Exception $e) {
-                throw new Exception(sprintf('Could not copy the file from "%s" to temporary file "%s".', $source, $temporaryTargetPathAndFilename), 1446667394);
+                throw new Exception(sprintf('Could not copy the file from "%s" to temporary file "%s".', $source, $temporaryTargetPathAndFilename), 1446667394, $e);
             }
         }
 
@@ -202,7 +202,7 @@ class GcsStorage implements WritableStorageInterface
         } catch (\Exception $e) {
             $message = sprintf('Google Cloud Storage: Could not import the temporary file from "%s" to to collection "%s": %s', $temporaryTargetPathAndFilename, $collectionName, $e->getMessage());
             $this->logger->error($message, LogEnvironment::fromMethodName(__METHOD__));
-            throw new Exception($message, 1538034191);
+            throw new Exception($message, 1538034191, $e);
         }
         unlink($temporaryTargetPathAndFilename);
 
@@ -338,7 +338,7 @@ class GcsStorage implements WritableStorageInterface
         } catch (\Exception $e) {
             $message = sprintf('Google Cloud Storage: Could not retrieve stream for resource %s (/%s/%s%s). %s', $resource->getFilename(), $this->bucketName, $this->keyPrefix, $resource->getSha1(), $e->getMessage());
             $this->logger->error($message, LogEnvironment::fromMethodName(__METHOD__));
-            throw new Exception($message, 1446667860);
+            throw new Exception($message, 1446667860, $e);
         }
     }
 
@@ -362,7 +362,7 @@ class GcsStorage implements WritableStorageInterface
             }
             $message = sprintf('Google Cloud Storage: Could not retrieve stream for resource (gs://%s/%s). %s', $this->bucketName, $this->keyPrefix . ltrim($relativePath, '/'), $e->getMessage());
             $this->logger->error($message, LogEnvironment::fromMethodName(__METHOD__));
-            throw new Exception($message, 1446667861);
+            throw new Exception($message, 1446667861, $e);
         }
     }
 
@@ -441,15 +441,15 @@ class GcsStorage implements WritableStorageInterface
                         'contentType' => $resource->getMediaType()
                     ]
                 ]);
-            } catch (\Exception $exception) {
+            } catch (\Exception $e) {
                 if (!$bucket->exists()) {
                     $message = sprintf('Google Cloud Storage: Failed importing the temporary file into storage collection "%s" because the target bucket "%s" does not exist.', $collectionName, $bucket->name());
                     $this->logger->error($message, LogEnvironment::fromMethodName(__METHOD__));
-                    throw new \Exception($message, 1567591469);
+                    throw new \Exception($message, 1567591469, $e);
                 }
 
-                $this->logger->error(sprintf('Google Cloud Storage: Failed importing the temporary file into storage collection "%s": %s', $collectionName, $exception->getMessage()), LogEnvironment::fromMethodName(__METHOD__));
-                throw $exception;
+                $this->logger->error(sprintf('Google Cloud Storage: Failed importing the temporary file into storage collection "%s": %s', $collectionName, $e->getMessage()), LogEnvironment::fromMethodName(__METHOD__));
+                throw $e;
             }
 
             $this->logger->debug(sprintf('Google Cloud Storage: Successfully imported resource as object "%s" into bucket "%s" with SHA1 hash "%s"', $sha1Hash, $this->bucketName, $resource->getSha1() ?: 'unknown'), LogEnvironment::fromMethodName(__METHOD__));
