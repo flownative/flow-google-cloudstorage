@@ -78,7 +78,7 @@ For the bucket to be readable by everyone on the Internet (needed to deliver ass
 4. Click the _+ Add_ button. 
 5. The _Add principals_ dialog box appears. 
 6. In the _New principals_ field, enter _allUsers_. 
-7. In the _Select a role_ drop down, select the _Cloud Storage_ sub-menu, and click the _Storage Object Viewer_ option. 
+7. In the _Select a role_ drop down, select the _Cloud Storage_ sub-menu, and click the _Storage Legacy Object Reader_ option. 
 8. Click _Save_. 
 9. Click _Allow public access_.
 
