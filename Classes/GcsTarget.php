@@ -20,7 +20,6 @@ use Google\Cloud\Storage\Bucket;
 use Google\Cloud\Storage\StorageClient;
 use Google\Cloud\Storage\StorageObject;
 use GuzzleHttp\Psr7\Uri;
-use Neos\Error\Messages\Error;
 use Neos\Error\Messages\Message;
 use Neos\Flow\Annotations as Flow;
 use Neos\Flow\Log\Utility\LogEnvironment;
@@ -40,7 +39,6 @@ use Psr\Log\LoggerInterface;
  */
 class GcsTarget implements TargetInterface
 {
-
     /**
      * Name which identifies this resource target
      *
@@ -449,7 +447,7 @@ class GcsTarget implements TargetInterface
     public function publishResource(PersistentResource $resource, CollectionInterface $collection): void
     {
         $storage = $collection->getStorage();
-        if ($storage instanceof GcsStorage && $storage->getBucketName() === $this->bucketName) {
+        if ($this->isOneBucketSetup($collection)) {
             $updated = false;
             $retries = 0;
             while (!$updated) {
