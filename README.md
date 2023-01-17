@@ -14,7 +14,8 @@ this adaptor also works nicely for all kinds of assets in Neos.
 - store all assets or only a specific collection in a private GCS bucket
 - publish assets to a private or public GCS bucket
 - supports GZIP compression for selected media types
-- command line interface for basic tasks like connection check or emptying an GCS bucket
+- command line interface for tasks like connection check, emptying an GCS 
+  bucket or consistency check with clean up
 
 Using this connector, you can run a Neos website which does not store any asset (images, PDFs etc.) on your local webserver.
 
