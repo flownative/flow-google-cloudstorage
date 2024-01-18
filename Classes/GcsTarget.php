@@ -424,6 +424,16 @@ class GcsTarget implements TargetInterface
     }
 
     /**
+     * Satisfy the TargetInterface
+     *
+     * @param \Closure $callback
+     * @return void
+     */
+    public function onPublish(\Closure $callback): void
+    {
+    }
+
+    /**
      * Returns the web accessible URI pointing to the given static resource
      *
      * @param string $relativePathAndFilename Relative path and filename of the static resource
