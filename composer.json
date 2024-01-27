@@ -21,6 +21,9 @@
         "ext-pdo": "*",
         "ext-zlib": "*"
     },
+    "suggest": {
+        "ext-fileinfo": "Needed to set correct MediaType in storage"
+    },
     "autoload": {
         "psr-4": {
             "Flownative\\Google\\CloudStorage\\": "Classes"
