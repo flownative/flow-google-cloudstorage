@@ -399,7 +399,7 @@ class GcsTarget implements TargetInterface
                     $this->logger->debug(sprintf('Copy object "%s" to bucket "%s"', $targetObjectName, $this->bucketName), LogEnvironment::fromMethodName(__METHOD__));
                     $options = [
                         'name' => $targetObjectName,
-                        'predefinedAcl' => 'publicRead',
+                        'predefinedAcl' => $this->persistentResourceUriEnableSigning ? 'private' : 'publicRead',
                         'contentType' => $object->getMediaType(),
                         'cacheControl' => 'public, max-age=1209600',
                     ];
@@ -465,7 +465,7 @@ class GcsTarget implements TargetInterface
                     $storageBucket = $this->storageClient->bucket($storage->getBucketName());
                     $storageBucket->object($storage->getKeyPrefix() . $resource->getSha1())->update(
                         [
-                            'predefinedAcl' => 'publicRead',
+                            'predefinedAcl' => $this->persistentResourceUriEnableSigning ? 'private' : 'publicRead',
                             'contentType' => $resource->getMediaType(),
                             'cacheControl' => 'public, max-age=1209600'
                         ]);
@@ -491,7 +491,7 @@ class GcsTarget implements TargetInterface
             try {
                 $storageBucket->object($storage->getKeyPrefix() . $resource->getSha1())->copy($this->getCurrentBucket(), [
                     'name' => $targetObjectName,
-                    'predefinedAcl' => 'publicRead',
+                    'predefinedAcl' => $this->persistentResourceUriEnableSigning ? 'private' : 'publicRead',
                     'contentType' => $resource->getMediaType(),
                     'cacheControl' => 'public, max-age=1209600',
                 ]);
@@ -598,7 +598,7 @@ class GcsTarget implements TargetInterface
         $objectName = $this->keyPrefix . $relativeTargetPathAndFilename;
         $uploadParameters = [
             'name' => $objectName,
-            'predefinedAcl' => 'publicRead',
+            'predefinedAcl' => $this->persistentResourceUriEnableSigning ? 'private' : 'publicRead',
             'contentType' => $metaData->getMediaType(),
             'cacheControl' => 'public, max-age=1209600'
         ];
