@@ -61,6 +61,13 @@ class GcsTarget implements TargetInterface
     protected $keyPrefix = '';
 
     /**
+     * Name of the Google Cloud Storage bucket which should be used for publication
+     *
+     * @var string
+     */
+    protected $objectVisibility = 'publicRead';
+
+    /**
      * @var string
      */
     protected $persistentResourceUriPattern = '';
@@ -189,6 +196,9 @@ class GcsTarget implements TargetInterface
                 break;
                 case 'keyPrefix':
                     $this->keyPrefix = ltrim($value, '/');
+                break;
+                case 'objectVisibility':
+                    $this->objectVisibility = $value;
                 break;
                 case 'persistentResourceUris':
                     if (!is_array($value)) {
@@ -399,7 +409,7 @@ class GcsTarget implements TargetInterface
                     $this->logger->debug(sprintf('Copy object "%s" to bucket "%s"', $targetObjectName, $this->bucketName), LogEnvironment::fromMethodName(__METHOD__));
                     $options = [
                         'name' => $targetObjectName,
-                        'predefinedAcl' => $this->persistentResourceUriEnableSigning ? 'private' : 'publicRead',
+                        'predefinedAcl' => $this->objectVisibility,
                         'contentType' => $object->getMediaType(),
                         'cacheControl' => 'public, max-age=1209600',
                     ];
@@ -465,7 +475,7 @@ class GcsTarget implements TargetInterface
                     $storageBucket = $this->storageClient->bucket($storage->getBucketName());
                     $storageBucket->object($storage->getKeyPrefix() . $resource->getSha1())->update(
                         [
-                            'predefinedAcl' => $this->persistentResourceUriEnableSigning ? 'private' : 'publicRead',
+                            'predefinedAcl' => $this->objectVisibility,
                             'contentType' => $resource->getMediaType(),
                             'cacheControl' => 'public, max-age=1209600'
                         ]);
@@ -491,7 +501,7 @@ class GcsTarget implements TargetInterface
             try {
                 $storageBucket->object($storage->getKeyPrefix() . $resource->getSha1())->copy($this->getCurrentBucket(), [
                     'name' => $targetObjectName,
-                    'predefinedAcl' => $this->persistentResourceUriEnableSigning ? 'private' : 'publicRead',
+                    'predefinedAcl' => $this->objectVisibility,
                     'contentType' => $resource->getMediaType(),
                     'cacheControl' => 'public, max-age=1209600',
                 ]);
@@ -598,7 +608,7 @@ class GcsTarget implements TargetInterface
         $objectName = $this->keyPrefix . $relativeTargetPathAndFilename;
         $uploadParameters = [
             'name' => $objectName,
-            'predefinedAcl' => $this->persistentResourceUriEnableSigning ? 'private' : 'publicRead',
+            'predefinedAcl' => $this->objectVisibility,
             'contentType' => $metaData->getMediaType(),
             'cacheControl' => 'public, max-age=1209600'
         ];
