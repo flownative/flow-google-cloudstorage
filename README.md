@@ -262,19 +262,20 @@ a file stored in the Storage bucket using the given SHA1.
 You can tell the Target to render URIs like these by defining a pattern with placeholders:
 
 ```yaml
-      targets:
-        googlePersistentResourcesTarget:
-          target: 'Flownative\Google\CloudStorage\GcsTarget'
-          targetOptions:
-            bucket: 'flownativecom.flownative.cloud'
-            baseUri: 'https://assets.flownative.com/'
-            persistentResourceUris:
-              pattern: '{baseUri}{sha1}/{filename}'
+targets:
+  googlePersistentResourcesTarget:
+    target: 'Flownative\Google\CloudStorage\GcsTarget'
+    targetOptions:
+      bucket: 'flownativecom.flownative.cloud'
+      baseUri: 'https://assets.flownative.com/'
+      persistentResourceUris:
+        pattern: '{baseUri}{sha1}/{filename}'
 ```
 
 The possible placeholders are:
 
 - `{baseUri}` The base URI as defined in the target options
+- `{flowBaseUri}` The base URI as configured in or detected by Flow
 - `{bucketName}` The target's bucket name
 - `{keyPrefix}` The target's configured key prefix
 - `{sha1}` The resource's SHA1

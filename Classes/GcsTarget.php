@@ -22,6 +22,7 @@ use Google\Cloud\Storage\StorageObject;
 use GuzzleHttp\Psr7\Uri;
 use Neos\Error\Messages\Message;
 use Neos\Flow\Annotations as Flow;
+use Neos\Flow\Http\BaseUriProvider;
 use Neos\Flow\Log\Utility\LogEnvironment;
 use Neos\Flow\ObjectManagement\ObjectManagerInterface;
 use Neos\Flow\ResourceManagement\CollectionInterface;
@@ -171,6 +172,12 @@ class GcsTarget implements TargetInterface
      * @var ObjectManagerInterface
      */
     protected $objectManager;
+
+    /**
+     * @Flow\Inject
+     * @var BaseUriProvider
+     */
+    protected $baseUriProvider;
 
     /**
      * Constructor
@@ -559,6 +566,7 @@ class GcsTarget implements TargetInterface
 
         $variables = [
             '{baseUri}' => $baseUri,
+            '{flowBaseUri}' => (string)$this->baseUriProvider->getConfiguredBaseUriOrFallbackToCurrentRequest(),
             '{bucketName}' => $this->bucketName,
             '{keyPrefix}' => $this->keyPrefix,
             '{sha1}' => $resource->getSha1(),
