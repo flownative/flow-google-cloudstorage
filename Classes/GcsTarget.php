@@ -574,13 +574,15 @@ class GcsTarget implements TargetInterface
             '{fileExtension}' => $resource->getFileExtension()
         ];
 
+        if (str_contains($customUri, '{flowBaseUri}')) {
+            $variables['{flowBaseUri}'] = (string)$this->baseUriProvider->getConfiguredBaseUriOrFallbackToCurrentRequest();
+        }
+
         if (method_exists($resource, 'getMd5')) {
             $variables['{md5}'] = $resource->getMd5();
         }
 
-        foreach ($variables as $placeholder => $replacement) {
-            $customUri = str_replace($placeholder, $replacement, $customUri);
-        }
+        $customUri = str_replace(array_keys($variables), array_values($variables), $customUri);
 
         if ($this->persistentResourceUriEnableSigning) {
             $objectName = $this->keyPrefix . $resource->getSha1();
