@@ -239,6 +239,14 @@ class GcsStorage implements WritableStorageInterface
             $resource->setMd5(md5($content));
         }
 
+        if (
+            class_exists('\finfo')
+            && ($finfo = new \finfo(FILEINFO_MIME_TYPE))
+            && ($mediaType = $finfo->buffer($content))
+        ) {
+            $resource->setMediaType($mediaType);
+        }
+
         $this->getCurrentBucket()->upload($content, [
             'name' => $this->keyPrefix . $sha1Hash,
             'metadata' => [
@@ -430,6 +438,13 @@ class GcsStorage implements WritableStorageInterface
         # Provide compatibility with Flow 6.x and earlier:
         if (method_exists($resource, 'setMd5')) {
             $resource->setMd5(md5_file($temporaryPathAndFilename));
+        }
+
+        if (
+            function_exists('mime_content_type')
+            && $mediaType = mime_content_type($temporaryPathAndFilename)
+        ) {
+            $resource->setMediaType($mediaType);
         }
 
         $bucket = $this->getCurrentBucket();
