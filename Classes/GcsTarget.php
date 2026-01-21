@@ -180,6 +180,12 @@ class GcsTarget implements TargetInterface
     protected $baseUriProvider;
 
     /**
+     *
+     * @var array
+     */
+    protected $publishedResourceSha1s = [];
+
+    /**
      * Constructor
      *
      * @param string $name Name of this target instance, according to the resource settings
@@ -463,6 +469,10 @@ class GcsTarget implements TargetInterface
      */
     public function publishResource(PersistentResource $resource, CollectionInterface $collection): void
     {
+        // Prevent multiple publish calls during the same request
+        if (in_array($resource->getSha1(), $this->publishedResourceSha1s)) {
+            return;
+        }
         $storage = $collection->getStorage();
         if ($this->isOneBucketSetup($collection)) {
             $updated = false;
@@ -521,6 +531,7 @@ class GcsTarget implements TargetInterface
             }
             $this->publishFile($sourceStream, $this->getRelativePublicationPathAndFilename($resource), $resource);
         }
+        $this->publishedResourceSha1s[] = $resource->getSha1();
     }
 
     /**
