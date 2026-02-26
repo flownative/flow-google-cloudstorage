@@ -154,7 +154,7 @@ final class GcsCommandController extends CommandController
      * @param string|null $startSha1 If specified, updates are starting at this SHA1 in alphabetical order
      * @throws \Doctrine\DBAL\DBALException
      */
-    public function updateResourceMetadataCommand(string $collection = 'persistent', string $startSha1 = null): void
+    public function updateResourceMetadataCommand(string $collection = 'persistent', ?string $startSha1 = null): void
     {
         $collectionName = $collection;
         $collection = $this->resourceManager->getCollection($collection);
