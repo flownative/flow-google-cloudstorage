@@ -405,13 +405,22 @@ If your application wants to hand out signed URIs itself, for example in order t
 it checked the permissions of the current user, it can ask the target for one:
 
 ```php
-$target = $this->resourceManager->getCollection($resource->getCollectionName())->getTarget();
-$uri = $target->getSignedPersistentResourceUri($resource, 60);
+$collection = $this->resourceManager->getCollection($resource->getCollectionName());
+$target = $collection?->getTarget();
+if ($target instanceof GcsTarget) {
+    $uri = $target->getSignedPersistentResourceUri($resource, 60);
+}
 ```
 
 The second argument is the lifetime of the signature in seconds and may be omitted, then the configured
 `signatureLifetime` applies. This method never uses the URI pattern, it always points at Google Cloud
-Storage directly. It requires `enableSigning` to be switched on and throws an exception otherwise.
+Storage directly. It requires `enableSigning` to be switched on and throws an exception otherwise. The
+method only exists on `GcsTarget`, so check the target's class before calling it, as shown above; a
+`FileSystemTarget` in a development setup does not have it.
+
+Keep in mind that a signed URI expires. As long as the objects were publicly readable, a signature that had
+run out was harmless. With `publicRead: false` the same request ends in a 403, so signed URIs must not end
+up in anything that outlives the signature, such as cached markup or an e-mail.
 
 ## GZIP Compression
 
