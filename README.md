@@ -401,6 +401,18 @@ object, otherwise Google Cloud Storage will reject the request. The `{objectName
 object name for the current setup, and the default pattern uses it when no `baseUri` is configured. A
 pattern pointing at a reverse proxy or CDN which rewrites paths cannot work together with signing.
 
+If your application wants to hand out signed URIs itself, for example in order to redirect to a file after
+it checked the permissions of the current user, it can ask the target for one:
+
+```php
+$target = $this->resourceManager->getCollection($resource->getCollectionName())->getTarget();
+$uri = $target->getSignedPersistentResourceUri($resource, 60);
+```
+
+The second argument is the lifetime of the signature in seconds and may be omitted, then the configured
+`signatureLifetime` applies. This method never uses the URI pattern, it always points at Google Cloud
+Storage directly. It requires `enableSigning` to be switched on and throws an exception otherwise.
+
 ## GZIP Compression
 
 Google Cloud Storage supports GZIP compression for delivering files to the user, however, these files need to be

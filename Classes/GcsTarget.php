@@ -599,6 +599,27 @@ class GcsTarget implements TargetInterface
     }
 
     /**
+     * Returns a signed URI which allows downloading the given persistent resource for a limited time
+     *
+     * This is meant for applications which decide themselves who may access a resource and then redirect to
+     * the object in a private bucket. In contrast to getPublicPersistentResourceUri(), the URI points directly
+     * at Google Cloud Storage and no custom URI pattern is applied, so the signature always matches the path.
+     *
+     * @param PersistentResource $resource
+     * @param int|null $lifetime Lifetime of the signature in seconds, null for the configured default
+     * @return string
+     * @throws Exception If signing is not enabled for this target
+     */
+    public function getSignedPersistentResourceUri(PersistentResource $resource, ?int $lifetime = null): string
+    {
+        if (!$this->persistentResourceUriEnableSigning) {
+            throw new Exception(sprintf('Cannot create a signed URI for a resource of the "%s" resource GcsTarget, because signing is not enabled for this target. Please set the option "persistentResourceUris.enableSigning" in your settings.', $this->name), 1789652340);
+        }
+
+        return $this->createSignedUri($this->getObjectNameForPersistentResource($resource), $lifetime ?? $this->persistentResourceUriSignatureLifetime);
+    }
+
+    /**
      * Publishes the specified source file to this target, with the given relative path.
      *
      * @param resource $sourceStream
