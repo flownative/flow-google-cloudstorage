@@ -365,6 +365,33 @@ With this configuration, generated links will look like the following:
 https://assets.flownative.com/d19409d1315d0cf268c191f33d5a3c6cde29f903/photo.jpg?GoogleAccessId=robert@my-project.iam.gserviceaccount.com&Expires=1568877386&Signature=VCyYVsyxScRf6VkQ88g16haWKewlZ4iVYOAio9HcGjT8VmhwNh8OG1zYSE%2BoC8TDpLNEPrmbSkRY92Tj4pntfLP5psV4Q%2BBakmh66crQHidb0%2BW2wkKI2GKm9CX%2FCF6kRdtObdYF1oxj1c6Fz3F31txylCilPMjL%2Fq0%2BWtvwk1hczv7vTccHuOgP5ymAUV5Z%2FlKSn7lQMb9BduUrCartzJZOUbUrrdlUHDle80cziWrxoDJSDy3dAM89Dhe9g5rmJ6xsN4YF%2BZSo1xzCW2NMdghSzlz5yBhZAIf6nhO9VjVzuuF1X70X00pNU19FQJiYPxC3VD7UhggZ2%2B3KWoAsRg%3D%3D
 ```
 
+## Private Buckets and Signed URIs
+
+By default, the Target makes every published object publicly readable: it sets the predefined ACL
+`publicRead` and marks the object as publicly cacheable. If resources must not be readable by everyone,
+because your application decides who may download them, switch that off with the `publicRead` option:
+
+```yaml
+      targets:
+        googlePersistentResourcesTarget:
+          target: 'Flownative\Google\CloudStorage\GcsTarget'
+          targetOptions:
+            bucket: 'files.example.com'
+            publicRead: false
+            persistentResourceUris:
+              enableSigning: true
+              signatureLifetime: 600
+```
+
+With `publicRead: false` the Target leaves the ACL of published objects alone, so access is up to the
+bucket's own policy, and objects are marked as privately cacheable. This is also the option to use for
+buckets with *uniform bucket-level access* enabled: such buckets reject a predefined ACL, which makes
+publishing fail as long as the Target tries to set one. Note that objects which were published earlier keep
+the ACL they were given back then, so an existing bucket needs to have the public access removed as well.
+
+Objects in a private bucket cannot be downloaded through a plain URL, therefore signing needs to be
+enabled as well (see the previous section). The signature is what grants access for the configured lifetime.
+
 ## GZIP Compression
 
 Google Cloud Storage supports GZIP compression for delivering files to the user, however, these files need to be
