@@ -62,6 +62,14 @@ class GcsTarget implements TargetInterface
     protected $keyPrefix = '';
 
     /**
+     * If published objects should be made readable for everyone. If false, the ACL of the objects is left
+     * alone and the bucket policy decides who may read them.
+     *
+     * @var bool
+     */
+    protected $publicRead = true;
+
+    /**
      * @var string
      */
     protected $persistentResourceUriPattern = '';
@@ -70,6 +78,8 @@ class GcsTarget implements TargetInterface
      * @string
      */
     private const DEFAULT_PERSISTENT_RESOURCE_URI_PATTERN = '{baseUri}{keyPrefix}{sha1}/{filename}';
+
+    private const DEFAULT_GOOGLE_STORAGE_PERSISTENT_RESOURCE_URI_PATTERN = '{baseUri}{bucketName}/{objectName}';
 
     /**
      * @var bool
@@ -196,6 +206,9 @@ class GcsTarget implements TargetInterface
                 break;
                 case 'keyPrefix':
                     $this->keyPrefix = ltrim($value, '/');
+                break;
+                case 'publicRead':
+                    $this->publicRead = (bool)$value;
                 break;
                 case 'persistentResourceUris':
                     if (!is_array($value)) {
@@ -404,12 +417,7 @@ class GcsTarget implements TargetInterface
             } else {
                 try {
                     $this->logger->debug(sprintf('Copy object "%s" to bucket "%s"', $targetObjectName, $this->bucketName), LogEnvironment::fromMethodName(__METHOD__));
-                    $options = [
-                        'name' => $targetObjectName,
-                        'predefinedAcl' => 'publicRead',
-                        'contentType' => $object->getMediaType(),
-                        'cacheControl' => 'public, max-age=1209600',
-                    ];
+                    $options = array_merge(['name' => $targetObjectName], $this->getObjectWriteOptions($object->getMediaType()));
 
                     $storageBucket->object($storage->getKeyPrefix() . $object->getSha1())->copy($targetBucket, $options);
                 } catch (GoogleException $e) {
@@ -470,12 +478,7 @@ class GcsTarget implements TargetInterface
             while (!$updated) {
                 try {
                     $storageBucket = $this->storageClient->bucket($storage->getBucketName());
-                    $storageBucket->object($storage->getKeyPrefix() . $resource->getSha1())->update(
-                        [
-                            'predefinedAcl' => 'publicRead',
-                            'contentType' => $resource->getMediaType(),
-                            'cacheControl' => 'public, max-age=1209600'
-                        ]);
+                    $storageBucket->object($storage->getKeyPrefix() . $resource->getSha1())->update($this->getObjectWriteOptions($resource->getMediaType()));
                     $updated = true;
                 } catch (GoogleException $exception) {
                     $retries++;
@@ -496,12 +499,7 @@ class GcsTarget implements TargetInterface
             $storageBucket = $this->storageClient->bucket($storage->getBucketName());
 
             try {
-                $storageBucket->object($storage->getKeyPrefix() . $resource->getSha1())->copy($this->getCurrentBucket(), [
-                    'name' => $targetObjectName,
-                    'predefinedAcl' => 'publicRead',
-                    'contentType' => $resource->getMediaType(),
-                    'cacheControl' => 'public, max-age=1209600',
-                ]);
+                $storageBucket->object($storage->getKeyPrefix() . $resource->getSha1())->copy($this->getCurrentBucket(), array_merge(['name' => $targetObjectName], $this->getObjectWriteOptions($resource->getMediaType())));
             } catch (GoogleException $e) {
                 $googleError = json_decode($e->getMessage(), false);
                 if ($googleError instanceof \stdClass && isset($googleError->error->message)) {
@@ -558,7 +556,7 @@ class GcsTarget implements TargetInterface
         if (empty($customUri)) {
             if (empty($baseUri)) {
                 $baseUri = 'https://storage.googleapis.com/';
-                $customUri = '{baseUri}{bucketName}/{keyPrefix}{sha1}/{filename}';
+                $customUri = self::DEFAULT_GOOGLE_STORAGE_PERSISTENT_RESOURCE_URI_PATTERN;
             } else {
                 $customUri = self::DEFAULT_PERSISTENT_RESOURCE_URI_PATTERN;
             }
@@ -566,7 +564,6 @@ class GcsTarget implements TargetInterface
 
         $variables = [
             '{baseUri}' => $baseUri,
-            '{flowBaseUri}' => (string)$this->baseUriProvider->getConfiguredBaseUriOrFallbackToCurrentRequest(),
             '{bucketName}' => $this->bucketName,
             '{keyPrefix}' => $this->keyPrefix,
             '{sha1}' => $resource->getSha1(),
@@ -582,17 +579,43 @@ class GcsTarget implements TargetInterface
             $variables['{md5}'] = $resource->getMd5();
         }
 
+        $objectName = '';
+        if ($this->persistentResourceUriEnableSigning || str_contains($customUri, '{objectName}')) {
+            $objectName = $this->getObjectNameForPersistentResource($resource);
+            $variables['{objectName}'] = $objectName;
+        }
+
         $customUri = str_replace(array_keys($variables), array_values($variables), $customUri);
 
         if ($this->persistentResourceUriEnableSigning) {
-            $objectName = $this->keyPrefix . $resource->getSha1();
-            $signedStandardUri = new Uri($this->getCurrentBucket()->object($objectName)->signedUrl(time() + $this->persistentResourceUriSignatureLifetime, ['method' => 'GET']));
+            $signedStandardUri = new Uri($this->createSignedUri($objectName, $this->persistentResourceUriSignatureLifetime));
             $customUri .= '?' . $signedStandardUri->getQuery();
         }
 
         // Let Uri implementation take care of encoding the Uri
         $uri = new Uri($customUri);
         return (string)$uri;
+    }
+
+    /**
+     * Returns a signed URI which allows downloading the given persistent resource for a limited time
+     *
+     * This is meant for applications which decide themselves who may access a resource and then redirect to
+     * the object in a private bucket. In contrast to getPublicPersistentResourceUri(), the URI points directly
+     * at Google Cloud Storage and no custom URI pattern is applied, so the signature always matches the path.
+     *
+     * @param PersistentResource $resource
+     * @param int|null $lifetime Lifetime of the signature in seconds, null for the configured default
+     * @return string
+     * @throws Exception If signing is not enabled for this target
+     */
+    public function getSignedPersistentResourceUri(PersistentResource $resource, ?int $lifetime = null): string
+    {
+        if (!$this->persistentResourceUriEnableSigning) {
+            throw new Exception(sprintf('Cannot create a signed URI for a resource of the "%s" resource GcsTarget, because signing is not enabled for this target. Please set the option "persistentResourceUris.enableSigning" in your settings.', $this->name), 1789652340);
+        }
+
+        return $this->createSignedUri($this->getObjectNameForPersistentResource($resource), $lifetime ?? $this->persistentResourceUriSignatureLifetime);
     }
 
     /**
@@ -606,12 +629,7 @@ class GcsTarget implements TargetInterface
     protected function publishFile($sourceStream, string $relativeTargetPathAndFilename, ResourceMetaDataInterface $metaData): void
     {
         $objectName = $this->keyPrefix . $relativeTargetPathAndFilename;
-        $uploadParameters = [
-            'name' => $objectName,
-            'predefinedAcl' => 'publicRead',
-            'contentType' => $metaData->getMediaType(),
-            'cacheControl' => 'public, max-age=1209600'
-        ];
+        $uploadParameters = array_merge(['name' => $objectName], $this->getObjectWriteOptions($metaData->getMediaType()));
 
         if (in_array($metaData->getMediaType(), $this->gzipCompressionMediaTypes, true)) {
             try {
@@ -644,6 +662,62 @@ class GcsTarget implements TargetInterface
                 unlink($temporaryTargetPathAndFilename);
             }
         }
+    }
+
+    /**
+     * Determines and returns the name of the bucket object which contains the data of the given persistent resource.
+     *
+     * Where the object ends up depends on the setup: in a one-bucket setup the resource is never copied, so the
+     * object is the one the storage created, named "{keyPrefix}{sha1}". In a two-bucket setup the resource was
+     * copied or uploaded into the target bucket and carries its filename, for example
+     * "{keyPrefix}c828d0f88ce197be1aff7cc2e5e86b1244241ac6/MyPicture.jpg".
+     *
+     * @param PersistentResource $resource
+     * @return string
+     */
+    protected function getObjectNameForPersistentResource(PersistentResource $resource): string
+    {
+        $collection = $this->resourceManager->getCollection($resource->getCollectionName());
+        if ($collection !== null && $this->isOneBucketSetup($collection)) {
+            return $this->keyPrefix . $resource->getSha1();
+        }
+
+        return $this->keyPrefix . $this->getRelativePublicationPathAndFilename($resource);
+    }
+
+    /**
+     * Returns a URI pointing to the given object in the target bucket, signed for the given number of seconds
+     *
+     * @param string $objectName
+     * @param int $lifetime Lifetime of the signature, in seconds
+     * @return string
+     */
+    protected function createSignedUri(string $objectName, int $lifetime): string
+    {
+        return $this->getCurrentBucket()->object($objectName)->signedUrl(time() + $lifetime, ['method' => 'GET']);
+    }
+
+    /**
+     * Returns the options which are used for every object written to the target bucket.
+     *
+     * A target which is not publicly readable leaves the ACL alone, so that the bucket policy decides who may
+     * read the object. Buckets with uniform bucket-level access reject a predefined ACL altogether.
+     *
+     * @param string $mediaType
+     * @return array
+     */
+    protected function getObjectWriteOptions(string $mediaType): array
+    {
+        $options = [
+            'contentType' => $mediaType,
+            'cacheControl' => ($this->publicRead ? 'public' : 'private') . ', max-age=1209600'
+        ];
+
+        if ($this->publicRead) {
+            $options['predefinedAcl'] = 'publicRead';
+        }
+
+        return $options;
     }
 
     /**

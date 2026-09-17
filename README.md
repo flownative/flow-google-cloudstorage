@@ -281,11 +281,13 @@ The possible placeholders are:
 - `{sha1}` The resource's SHA1
 - `{filename}` The resource's full filename, for example "logo.svg"
 - `{fileExtension}` The resource's file extension, for example "svg"
+- `{objectName}` The name of the object in the bucket which actually contains the resource data, for
+  example "a817…cb1/logo.svg" in a two-bucket setup, or "a817…cb1" in a one-bucket setup
 
 For legacy and convenience reasons, the default pattern depends on the setup being used:
 
- - no pattern and no baseUri set: `https://storage.googleapis.com/{bucketName}/{keyPrefix}{sha1}`
- - no pattern set: `{baseUri}/{keyPrefix}{sha1}/{filename}`
+ - no pattern and no baseUri set: `https://storage.googleapis.com/{bucketName}/{objectName}`
+ - no pattern set: `{baseUri}{keyPrefix}{sha1}/{filename}`
 
 The respective setup is auto-detected by the Target and the patterns set accordingly. You may, of course,
 override the patterns, by specifying the `pattern` setting as explained above.
@@ -364,6 +366,61 @@ With this configuration, generated links will look like the following:
 ```
 https://assets.flownative.com/d19409d1315d0cf268c191f33d5a3c6cde29f903/photo.jpg?GoogleAccessId=robert@my-project.iam.gserviceaccount.com&Expires=1568877386&Signature=VCyYVsyxScRf6VkQ88g16haWKewlZ4iVYOAio9HcGjT8VmhwNh8OG1zYSE%2BoC8TDpLNEPrmbSkRY92Tj4pntfLP5psV4Q%2BBakmh66crQHidb0%2BW2wkKI2GKm9CX%2FCF6kRdtObdYF1oxj1c6Fz3F31txylCilPMjL%2Fq0%2BWtvwk1hczv7vTccHuOgP5ymAUV5Z%2FlKSn7lQMb9BduUrCartzJZOUbUrrdlUHDle80cziWrxoDJSDy3dAM89Dhe9g5rmJ6xsN4YF%2BZSo1xzCW2NMdghSzlz5yBhZAIf6nhO9VjVzuuF1X70X00pNU19FQJiYPxC3VD7UhggZ2%2B3KWoAsRg%3D%3D
 ```
+
+## Private Buckets and Signed URIs
+
+By default, the Target makes every published object publicly readable: it sets the predefined ACL
+`publicRead` and marks the object as publicly cacheable. If resources must not be readable by everyone,
+because your application decides who may download them, switch that off with the `publicRead` option:
+
+```yaml
+      targets:
+        googlePersistentResourcesTarget:
+          target: 'Flownative\Google\CloudStorage\GcsTarget'
+          targetOptions:
+            bucket: 'files.example.com'
+            publicRead: false
+            persistentResourceUris:
+              enableSigning: true
+              signatureLifetime: 600
+```
+
+With `publicRead: false` the Target leaves the ACL of published objects alone, so access is up to the
+bucket's own policy, and objects are marked as privately cacheable. This is also the option to use for
+buckets with *uniform bucket-level access* enabled: such buckets reject a predefined ACL, which makes
+publishing fail as long as the Target tries to set one. Note that objects which were published earlier keep
+the ACL they were given back then, so an existing bucket needs to have the public access removed as well.
+
+Objects in a private bucket cannot be downloaded through a plain URL, therefore signing needs to be
+enabled as well (see the previous section). The signature is what grants access for the configured lifetime.
+
+A signature is only valid for one specific object. The Target therefore signs the object which actually
+contains the resource data, which is "{keyPrefix}{sha1}" in a one-bucket setup and
+"{keyPrefix}{sha1}/{filename}" in a two-bucket setup. Make sure that your URI pattern points at that same
+object, otherwise Google Cloud Storage will reject the request. The `{objectName}` placeholder renders the
+object name for the current setup, and the default pattern uses it when no `baseUri` is configured. A
+pattern pointing at a reverse proxy or CDN which rewrites paths cannot work together with signing.
+
+If your application wants to hand out signed URIs itself, for example in order to redirect to a file after
+it checked the permissions of the current user, it can ask the target for one:
+
+```php
+$collection = $this->resourceManager->getCollection($resource->getCollectionName());
+$target = $collection?->getTarget();
+if ($target instanceof GcsTarget) {
+    $uri = $target->getSignedPersistentResourceUri($resource, 60);
+}
+```
+
+The second argument is the lifetime of the signature in seconds and may be omitted, then the configured
+`signatureLifetime` applies. This method never uses the URI pattern, it always points at Google Cloud
+Storage directly. It requires `enableSigning` to be switched on and throws an exception otherwise. The
+method only exists on `GcsTarget`, so check the target's class before calling it, as shown above; a
+`FileSystemTarget` in a development setup does not have it.
+
+Keep in mind that a signed URI expires. As long as the objects were publicly readable, a signature that had
+run out was harmless. With `publicRead: false` the same request ends in a 403, so signed URIs must not end
+up in anything that outlives the signature, such as cached markup or an e-mail.
 
 ## GZIP Compression
 
