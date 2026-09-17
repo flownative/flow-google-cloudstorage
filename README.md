@@ -281,11 +281,13 @@ The possible placeholders are:
 - `{sha1}` The resource's SHA1
 - `{filename}` The resource's full filename, for example "logo.svg"
 - `{fileExtension}` The resource's file extension, for example "svg"
+- `{objectName}` The name of the object in the bucket which actually contains the resource data, for
+  example "a817…cb1/logo.svg" in a two-bucket setup, or "a817…cb1" in a one-bucket setup
 
 For legacy and convenience reasons, the default pattern depends on the setup being used:
 
- - no pattern and no baseUri set: `https://storage.googleapis.com/{bucketName}/{keyPrefix}{sha1}`
- - no pattern set: `{baseUri}/{keyPrefix}{sha1}/{filename}`
+ - no pattern and no baseUri set: `https://storage.googleapis.com/{bucketName}/{objectName}`
+ - no pattern set: `{baseUri}{keyPrefix}{sha1}/{filename}`
 
 The respective setup is auto-detected by the Target and the patterns set accordingly. You may, of course,
 override the patterns, by specifying the `pattern` setting as explained above.
@@ -391,6 +393,13 @@ the ACL they were given back then, so an existing bucket needs to have the publi
 
 Objects in a private bucket cannot be downloaded through a plain URL, therefore signing needs to be
 enabled as well (see the previous section). The signature is what grants access for the configured lifetime.
+
+A signature is only valid for one specific object. The Target therefore signs the object which actually
+contains the resource data, which is "{keyPrefix}{sha1}" in a one-bucket setup and
+"{keyPrefix}{sha1}/{filename}" in a two-bucket setup. Make sure that your URI pattern points at that same
+object, otherwise Google Cloud Storage will reject the request. The `{objectName}` placeholder renders the
+object name for the current setup, and the default pattern uses it when no `baseUri` is configured. A
+pattern pointing at a reverse proxy or CDN which rewrites paths cannot work together with signing.
 
 ## GZIP Compression
 

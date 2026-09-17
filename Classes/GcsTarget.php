@@ -79,6 +79,8 @@ class GcsTarget implements TargetInterface
      */
     private const DEFAULT_PERSISTENT_RESOURCE_URI_PATTERN = '{baseUri}{keyPrefix}{sha1}/{filename}';
 
+    private const DEFAULT_GOOGLE_STORAGE_PERSISTENT_RESOURCE_URI_PATTERN = '{baseUri}{bucketName}/{objectName}';
+
     /**
      * @var bool
      */
@@ -554,7 +556,7 @@ class GcsTarget implements TargetInterface
         if (empty($customUri)) {
             if (empty($baseUri)) {
                 $baseUri = 'https://storage.googleapis.com/';
-                $customUri = '{baseUri}{bucketName}/{keyPrefix}{sha1}/{filename}';
+                $customUri = self::DEFAULT_GOOGLE_STORAGE_PERSISTENT_RESOURCE_URI_PATTERN;
             } else {
                 $customUri = self::DEFAULT_PERSISTENT_RESOURCE_URI_PATTERN;
             }
@@ -578,11 +580,16 @@ class GcsTarget implements TargetInterface
             $variables['{md5}'] = $resource->getMd5();
         }
 
+        $objectName = '';
+        if ($this->persistentResourceUriEnableSigning || str_contains($customUri, '{objectName}')) {
+            $objectName = $this->getObjectNameForPersistentResource($resource);
+            $variables['{objectName}'] = $objectName;
+        }
+
         $customUri = str_replace(array_keys($variables), array_values($variables), $customUri);
 
         if ($this->persistentResourceUriEnableSigning) {
-            $objectName = $this->keyPrefix . $resource->getSha1();
-            $signedStandardUri = new Uri($this->getCurrentBucket()->object($objectName)->signedUrl(time() + $this->persistentResourceUriSignatureLifetime, ['method' => 'GET']));
+            $signedStandardUri = new Uri($this->createSignedUri($objectName, $this->persistentResourceUriSignatureLifetime));
             $customUri .= '?' . $signedStandardUri->getQuery();
         }
 
@@ -635,6 +642,39 @@ class GcsTarget implements TargetInterface
                 unlink($temporaryTargetPathAndFilename);
             }
         }
+    }
+
+    /**
+     * Determines and returns the name of the bucket object which contains the data of the given persistent resource.
+     *
+     * Where the object ends up depends on the setup: in a one-bucket setup the resource is never copied, so the
+     * object is the one the storage created, named "{keyPrefix}{sha1}". In a two-bucket setup the resource was
+     * copied or uploaded into the target bucket and carries its filename, for example
+     * "{keyPrefix}c828d0f88ce197be1aff7cc2e5e86b1244241ac6/MyPicture.jpg".
+     *
+     * @param PersistentResource $resource
+     * @return string
+     */
+    protected function getObjectNameForPersistentResource(PersistentResource $resource): string
+    {
+        $collection = $this->resourceManager->getCollection($resource->getCollectionName());
+        if ($collection !== null && $this->isOneBucketSetup($collection)) {
+            return $this->keyPrefix . $resource->getSha1();
+        }
+
+        return $this->keyPrefix . $this->getRelativePublicationPathAndFilename($resource);
+    }
+
+    /**
+     * Returns a URI pointing to the given object in the target bucket, signed for the given number of seconds
+     *
+     * @param string $objectName
+     * @param int $lifetime Lifetime of the signature, in seconds
+     * @return string
+     */
+    protected function createSignedUri(string $objectName, int $lifetime): string
+    {
+        return $this->getCurrentBucket()->object($objectName)->signedUrl(time() + $lifetime, ['method' => 'GET']);
     }
 
     /**
