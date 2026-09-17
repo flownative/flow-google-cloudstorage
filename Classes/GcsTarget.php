@@ -564,7 +564,6 @@ class GcsTarget implements TargetInterface
 
         $variables = [
             '{baseUri}' => $baseUri,
-            '{flowBaseUri}' => (string)$this->baseUriProvider->getConfiguredBaseUriOrFallbackToCurrentRequest(),
             '{bucketName}' => $this->bucketName,
             '{keyPrefix}' => $this->keyPrefix,
             '{sha1}' => $resource->getSha1(),
