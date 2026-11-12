@@ -31,8 +31,10 @@ use Neos\Flow\ResourceManagement\PersistentResource;
 use Neos\Flow\ResourceManagement\Publishing\MessageCollector;
 use Neos\Flow\ResourceManagement\ResourceManager;
 use Neos\Flow\ResourceManagement\ResourceMetaDataInterface;
+use Neos\Flow\ResourceManagement\Target\Exception as TargetException;
 use Neos\Flow\ResourceManagement\Target\TargetInterface;
 use Neos\Flow\Utility\Environment;
+use Neos\Utility\Unicode\Functions as UnicodeFunctions;
 use Psr\Log\LoggerInterface;
 
 /**
@@ -130,6 +132,31 @@ class GcsTarget implements TargetInterface
         'application/json',
         'application/x-font-woff',
         'image/svg+xml'
+    ];
+
+    /**
+     * A list of extensions that are excluded and must not be published by this target.
+     *
+     * @var array<string, bool>
+     */
+    protected array $excludedExtensions = [
+        'aspx' => true,
+        'cgi' => true,
+        'phar' => true,
+        'php' => true,
+        'php3' => true,
+        'php4' => true,
+        'php5' => true,
+        'php7' => true,
+        'phtml' => true,
+        'pl' => true,
+        'py' => true,
+        'pyc' => true,
+        'pyo' => true,
+        'rb' => true,
+        'html' => true,
+        'htm' => true,
+        'shtml' => true,
     ];
 
     /**
@@ -263,6 +290,12 @@ class GcsTarget implements TargetInterface
                     }
                     $this->gzipCompressionMediaTypes = $value;
                 break;
+                case 'excludedExtensions':
+                    if (!is_array($value)) {
+                        throw new Exception(sprintf('The option "%s" which was specified in the configuration of the "%s" resource GcsTarget is not a valid array. Please check your settings.', $key, $name), 1778587200);
+                    }
+                    $this->excludedExtensions = array_change_key_case($value, CASE_LOWER);
+                break;
                 default:
                     if ($value !== null) {
                         throw new Exception(sprintf('An unknown option "%s" was specified in the configuration of the "%s" resource GcsTarget. Please check your settings.', $key, $name), 1446719852);
@@ -367,6 +400,12 @@ class GcsTarget implements TargetInterface
         } else {
             foreach ($collection->getObjects() as $object) {
                 /** @var \Neos\Flow\ResourceManagement\Storage\StorageObject $object */
+                try {
+                    $this->assertFileMayBePublished($this->getRelativePublicationPathAndFilename($object));
+                } catch (TargetException $e) {
+                    $this->messageCollector->append($e->getMessage(), Message::SEVERITY_WARNING, $e->getCode());
+                    continue;
+                }
                 $this->publishFile($object->getStream(), $this->getRelativePublicationPathAndFilename($object), $object);
                 unset($obsoleteObjects[$this->getRelativePublicationPathAndFilename($object)]);
             }
@@ -404,6 +443,13 @@ class GcsTarget implements TargetInterface
             if (isset($existingObjects[$targetObjectName])) {
                 $this->logger->debug(sprintf('Skipping object "%s" because it already exists in bucket "%s"', $targetObjectName, $this->bucketName), LogEnvironment::fromMethodName(__METHOD__));
                 unset($obsoleteObjects[$targetObjectName]);
+                continue;
+            }
+
+            try {
+                $this->assertFileMayBePublished($this->getRelativePublicationPathAndFilename($object));
+            } catch (TargetException $e) {
+                $this->messageCollector->append($e->getMessage(), Message::SEVERITY_WARNING, $e->getCode());
                 continue;
             }
 
@@ -471,6 +517,8 @@ class GcsTarget implements TargetInterface
      */
     public function publishResource(PersistentResource $resource, CollectionInterface $collection): void
     {
+        $this->assertFileMayBePublished($this->getRelativePublicationPathAndFilename($resource));
+
         $storage = $collection->getStorage();
         if ($this->isOneBucketSetup($collection)) {
             $updated = false;
@@ -628,6 +676,8 @@ class GcsTarget implements TargetInterface
      */
     protected function publishFile($sourceStream, string $relativeTargetPathAndFilename, ResourceMetaDataInterface $metaData): void
     {
+        $this->assertFileMayBePublished($relativeTargetPathAndFilename);
+
         $objectName = $this->keyPrefix . $relativeTargetPathAndFilename;
         $uploadParameters = array_merge(['name' => $objectName], $this->getObjectWriteOptions($metaData->getMediaType()));
 
@@ -661,6 +711,27 @@ class GcsTarget implements TargetInterface
             if (isset($temporaryTargetPathAndFilename) && file_exists($temporaryTargetPathAndFilename)) {
                 unlink($temporaryTargetPathAndFilename);
             }
+        }
+    }
+
+    /**
+     * Throws an exception if the given file must not be published by this target: either because its filename
+     * starts with a dot (for example ".htaccess") or because its extension is configured as excluded.
+     *
+     * @throws TargetException
+     */
+    protected function assertFileMayBePublished(string $relativeTargetPathAndFilename): void
+    {
+        $pathInfo = UnicodeFunctions::pathinfo($relativeTargetPathAndFilename);
+        if (str_starts_with($pathInfo['basename'] ?? '', '.')) {
+            throw new TargetException(sprintf('Could not publish "%s" into resource publishing target "%s" because filenames starting with a dot are not allowed.', $relativeTargetPathAndFilename, $this->name), 1778587202);
+        }
+        if (!isset($pathInfo['extension'])) {
+            return;
+        }
+        $extension = strtolower($pathInfo['extension']);
+        if (($this->excludedExtensions[$extension] ?? false) === true) {
+            throw new TargetException(sprintf('Could not publish "%s" into resource publishing target "%s" because the filename extension "%s" is excluded.', $relativeTargetPathAndFilename, $this->name, $extension), 1778587201);
         }
     }
 
