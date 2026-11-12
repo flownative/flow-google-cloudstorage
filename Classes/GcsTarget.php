@@ -42,81 +42,47 @@ class GcsTarget implements TargetInterface
 {
     /**
      * Name which identifies this resource target
-     *
-     * @var string
      */
-    protected $name = '';
+    protected string $name = '';
 
     /**
      * Name of the Google Cloud Storage bucket which should be used for publication
-     *
-     * @var string
      */
-    protected $bucketName = '';
+    protected string $bucketName = '';
 
     /**
      * A prefix to use for the key of bucket objects used by this storage
-     *
-     * @var string
      */
-    protected $keyPrefix = '';
+    protected string $keyPrefix = '';
 
     /**
      * If published objects should be made readable for everyone. If false, the ACL of the objects is left
      * alone and the bucket policy decides who may read them.
-     *
-     * @var bool
      */
-    protected $publicRead = true;
+    protected bool $publicRead = true;
 
-    /**
-     * @var string
-     */
-    protected $persistentResourceUriPattern = '';
+    protected string $persistentResourceUriPattern = '';
 
-    /**
-     * @string
-     */
     private const DEFAULT_PERSISTENT_RESOURCE_URI_PATTERN = '{baseUri}{keyPrefix}{sha1}/{filename}';
 
     private const DEFAULT_GOOGLE_STORAGE_PERSISTENT_RESOURCE_URI_PATTERN = '{baseUri}{bucketName}/{objectName}';
 
-    /**
-     * @var bool
-     */
-    protected $persistentResourceUriEnableSigning = false;
+    protected bool $persistentResourceUriEnableSigning = false;
 
-    /**
-     * @var int
-     */
-    protected $persistentResourceUriSignatureLifetime = 600;
+    protected int $persistentResourceUriSignatureLifetime = 600;
 
     /**
      * CORS (Cross-Origin Resource Sharing) allowed origins for published content
-     *
-     * @var string
      */
-    protected $corsAllowOrigin = '*';
+    protected string $corsAllowOrigin = '*';
 
-    /**
-     * @var string
-     */
-    protected $baseUri = '';
+    protected string $baseUri = '';
 
-    /**
-     * @var array
-     */
-    protected $customBaseUriMethod = [];
+    protected array $customBaseUriMethod = [];
 
-    /**
-     * @var int
-     */
-    protected $gzipCompressionLevel = 9;
+    protected int $gzipCompressionLevel = 9;
 
-    /**
-     * @var string[]
-     */
-    protected $gzipCompressionMediaTypes = [
+    protected array $gzipCompressionMediaTypes = [
         'text/plain',
         'text/css',
         'text/xml',
@@ -172,10 +138,7 @@ class GcsTarget implements TargetInterface
      */
     protected $currentBucket;
 
-    /**
-     * @var array
-     */
-    protected $existingObjectsInfo;
+    protected ?array $existingObjectsInfo = null;
 
     /**
      * @Flow\Inject

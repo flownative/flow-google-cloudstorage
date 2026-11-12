@@ -35,24 +35,18 @@ class GcsStorage implements WritableStorageInterface
 {
     /**
      * Name which identifies this resource storage
-     *
-     * @var string
      */
-    protected $name = '';
+    protected string $name = '';
 
     /**
      * Name of the bucket which should be used as a storage
-     *
-     * @var string
      */
-    protected $bucketName = '';
+    protected string $bucketName = '';
 
     /**
      * A prefix to use for the key of bucket objects used by this storage
-     *
-     * @var string
      */
-    protected $keyPrefix = '';
+    protected string $keyPrefix = '';
 
     /**
      * @Flow\Inject
@@ -108,10 +102,10 @@ class GcsStorage implements WritableStorageInterface
         foreach ($options as $key => $value) {
             switch ($key) {
                 case 'bucket':
-                    $this->bucketName = $value;
+                    $this->bucketName = (string)$value;
                 break;
                 case 'keyPrefix':
-                    $this->keyPrefix = ltrim($value, '/');
+                    $this->keyPrefix = ltrim((string)$value, '/');
                 break;
                 default:
                     if ($value !== null) {
@@ -128,7 +122,6 @@ class GcsStorage implements WritableStorageInterface
     /**
      * Initialize the Google Cloud Storage instance
      *
-     * @return void
      * @throws Exception
      */
     public function initializeObject(): void
@@ -138,8 +131,6 @@ class GcsStorage implements WritableStorageInterface
 
     /**
      * Returns the instance name of this storage
-     *
-     * @return string
      */
     public function getName(): string
     {
@@ -148,8 +139,6 @@ class GcsStorage implements WritableStorageInterface
 
     /**
      * Returns the bucket name used as a storage
-     *
-     * @return string
      */
     public function getBucketName(): string
     {
@@ -158,8 +147,6 @@ class GcsStorage implements WritableStorageInterface
 
     /**
      * Returns the object key prefix
-     *
-     * @return string
      */
     public function getKeyPrefix(): string
     {
@@ -333,7 +320,7 @@ class GcsStorage implements WritableStorageInterface
         try {
             $stream = $this->getCurrentBucket()->object($this->keyPrefix . $resource->getSha1())->downloadAsStream();
             return StreamWrapper::getResource($stream);
-        } catch (NotFoundException $e) {
+        } catch (NotFoundException) {
             return false;
         } catch (\Exception $e) {
             $message = sprintf('Google Cloud Storage: Could not retrieve stream for resource %s (/%s/%s%s). %s', $resource->getFilename(), $this->bucketName, $this->keyPrefix, $resource->getSha1(), $e->getMessage());
