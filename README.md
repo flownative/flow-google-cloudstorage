@@ -14,7 +14,7 @@ this adaptor also works nicely for all kinds of assets in Neos.
 - store all assets or only a specific collection in a private GCS bucket
 - publish assets to a private or public GCS bucket
 - supports GZIP compression for selected media types
-- command line interface for tasks like connection check, emptying an GCS 
+- command line interface for tasks like connection check, emptying an GCS
   bucket or consistency check with clean up
 
 Using this connector, you can run a Neos website which does not store any asset (images, PDFs etc.) on your local webserver.
@@ -73,16 +73,16 @@ in future versions.
 
 For the bucket to be readable by everyone on the Internet (needed to deliver assets), follow these steps:
 
-1. In the Google Cloud console, go to the _Cloud Storage Browser_ page. 
-2. In the list of buckets, click the name of the bucket that you want to make public. 
-3. Select the _Permissions_ tab near the top of the page. 
-4. Click the _+ Add_ button. 
-5. The _Add principals_ dialog box appears. 
-6. In the _New principals_ field, enter _allUsers_. 
+1. In the Google Cloud console, go to the _Cloud Storage Browser_ page.
+2. In the list of buckets, click the name of the bucket that you want to make public.
+3. Select the _Permissions_ tab near the top of the page.
+4. Click the _+ Add_ button.
+5. The _Add principals_ dialog box appears.
+6. In the _New principals_ field, enter _allUsers_.
 7. In the _Select a role_ drop down, select the _Cloud Storage_ sub-menu, and click the _Storage Object Viewer_
    option. Note: That includes permission to list the objects in the bucket. If you don't want to grant listing
    publicly, use _Storage Legacy Object Reader_ instead.
-8. Click _Save_. 
+8. Click _Save_.
 9. Click _Allow public access_.
 
 This is takes care of the "read side" of affairs.
@@ -459,6 +459,65 @@ Neos:
 
 Note that adding media types for data which is already compressed – for example images or movies – will likely rather
 increase the data size and thus should be avoided.
+
+## Excluded Files
+
+Like Flow's `FileSystemTarget`, the Google Cloud Storage Target can refuse to publish files with certain filename
+extensions. This prevents, for example, uploaded PHP or HTML files from becoming publicly accessible in the target
+bucket. Files whose name starts with a dot (for example `.htaccess`) are never published, regardless of the
+configuration. Such resources are not uploaded, copied or (in a one-bucket setup) made public;
+when publishing a single resource an exception is thrown, when publishing a whole collection the file is skipped
+and a warning is logged.
+
+```yaml
+Neos:
+  Flow:
+    resource:
+      targets:
+        googlePersistentResourcesTarget:
+          target: 'Flownative\Google\CloudStorage\GcsTarget'
+          targetOptions:
+            excludedExtensions:
+              'xml': true
+              'csv': true
+```
+
+Extensions are compared case-insensitively. Flow's default list can be found in the setting
+`Neos.Flow.resource.extensionsBlockedFromUpload`. 
+
+**The package has a list of default exclusions** matching Flow's list  (at the time of writing):
+
+- aspx
+- cgi
+- phar
+- php
+- php3
+- php4
+- php5
+- php7
+- phtml
+- pl
+- py
+- pyc
+- pyo
+- rb
+- html
+- htm
+- shtml
+
+In case you really want to allow uploading of such an extension, revert the setting:
+
+```yaml
+Neos:
+  Flow:
+    resource:
+      targets:
+        googlePersistentResourcesTarget:
+          target: 'Flownative\Google\CloudStorage\GcsTarget'
+          targetOptions:
+            excludedExtensions:
+              'html': false
+```
 
 ## Full Example Configuration for GCS
 
